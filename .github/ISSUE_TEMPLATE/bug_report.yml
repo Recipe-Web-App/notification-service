@@ -1,0 +1,124 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees:
+  - jsamuelsen11
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Make API call to '...'
+        2. With payload '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe expected behavior...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Describe actual behavior...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - API
+        - Database
+        - Authentication
+        - Notifications
+        - Configuration
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Critical - Service is down
+        - High - Major functionality broken
+        - Medium - Feature partially broken
+        - Low - Minor issue or cosmetic
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide environment details
+      placeholder: |
+        - Python version: 3.14
+        - Django version: 5.2.7
+        - Poetry version: 1.x
+        - OS: Ubuntu 22.04
+        - Deployment: Docker / Local
+      value: |
+        - Python version:
+        - Django version:
+        - Poetry version:
+        - OS:
+        - Deployment:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and Error Messages
+      description: Paste relevant logs, error messages, or stack traces
+      placeholder: |
+        Please redact any sensitive information (API keys, passwords, etc.)
+      render: shell
+
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Security Impact
+      description: Does this bug have security implications?
+      options:
+        - label: This bug has potential security impact (if yes, consider using Security Advisories instead)
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+      placeholder: Screenshots, related issues, attempted solutions...

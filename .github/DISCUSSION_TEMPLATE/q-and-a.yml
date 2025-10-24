@@ -1,0 +1,54 @@
+labels: [question]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask questions about using the notification service!
+
+        **Before asking:** Please search existing discussions to see if your question has already been answered.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: Ask your question here...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic Area
+      description: What is your question about?
+      options:
+        - Installation and Setup
+        - API Usage
+        - Configuration
+        - Authentication
+        - Notifications
+        - Deployment
+        - Troubleshooting
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context
+      placeholder: |
+        What have you tried? What documentation have you checked?
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Relevant Configuration (Optional)
+      description: Share relevant configuration (redact sensitive info)
+      placeholder: |
+        - Python version:
+        - Django version:
+        - Environment:
+      render: yaml

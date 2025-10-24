@@ -1,0 +1,103 @@
+name: Documentation Issue
+description: Report missing, incorrect, or unclear documentation
+title: "[Docs]: "
+labels: ["documentation", "needs-triage"]
+assignees:
+  - jsamuelsen11
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve our documentation! Report issues, suggest improvements, or request new documentation.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Documentation Type
+      description: What kind of documentation issue is this?
+      options:
+        - Missing - Documentation doesn't exist
+        - Incorrect - Documentation is wrong or outdated
+        - Unclear - Documentation is confusing or incomplete
+        - Typo - Spelling or grammar error
+        - Enhancement - Suggestion to improve existing docs
+    validations:
+      required: true
+
+  - type: dropdown
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is this documentation located?
+      options:
+        - README.md
+        - API Documentation
+        - Code Comments
+        - CONTRIBUTING.md
+        - SECURITY.md
+        - GitHub Wiki
+        - Inline Docstrings
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description
+      description: Describe the documentation issue
+      placeholder: What's wrong or missing in the documentation?
+    validations:
+      required: true
+
+  - type: textarea
+    id: location-specific
+    attributes:
+      label: Specific Location
+      description: Where exactly is this issue?
+      placeholder: |
+        - File: README.md
+        - Section: "Installation"
+        - Line: 42
+        - URL: https://github.com/...
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current Documentation
+      description: Quote the current documentation (if it exists)
+      placeholder: Copy the current text here...
+      render: markdown
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested Improvement
+      description: How should the documentation be changed or what should be added?
+      placeholder: Propose new or corrected documentation...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Target Audience
+      description: Who is this documentation for?
+      options:
+        - End Users
+        - Developers/Contributors
+        - System Administrators
+        - API Consumers
+        - All Audiences
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information
+      placeholder: Examples, screenshots, related documentation...

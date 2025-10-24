@@ -1,0 +1,199 @@
+# Pre-commit configuration for notification-service
+# See https://pre-commit.com for more information
+
+default_language_version:
+  python: python3  # Use system Python (pyenv managed)
+
+repos:
+  # ============================================================================
+  # File Quality Checks (fast, fail early)
+  # ============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # File cleanup
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+      # Syntax validation
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom YAML tags
+      - id: check-json
+      - id: check-toml
+
+      # Git checks
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+
+      # Python checks
+      - id: check-ast  # Validate Python syntax
+      - id: check-builtin-literals
+      - id: check-docstring-first
+      - id: debug-statements  # Check for debugger imports
+
+  # ============================================================================
+  # Python Code Formatting (auto-fix)
+  # ============================================================================
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        name: isort (python)
+        args: [--settings-path=pyproject.toml]
+        exclude: ^(migrations/)
+
+  # ============================================================================
+  # Python Linting
+  # ============================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.2
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        exclude: ^(migrations/)
+      - id: ruff-format
+        exclude: ^(migrations/)
+
+  # ============================================================================
+  # Type Checking
+  # ============================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        args:
+          - --config-file=pyproject.toml
+          - --ignore-missing-imports
+          - --show-error-codes
+        additional_dependencies:
+          - django>=5.2.7
+          - djangorestframework>=3.16.1
+          - django-stubs
+          - djangorestframework-stubs
+          - types-requests
+        exclude: ^(migrations/|tests/)
+
+  # ============================================================================
+  # Docstring Quality
+  # ============================================================================
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        args:
+          - --convention=google
+          - --add-ignore=D100,D104,D105,D107
+        exclude: ^(migrations/|tests/|manage.py|.*/__init__.py)
+
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.7.0
+    hooks:
+      - id: interrogate
+        args:
+          - --verbose
+          - --fail-under=80
+          - --ignore-init-method
+          - --ignore-init-module
+          - --ignore-magic
+          - --ignore-module
+          - --ignore-nested-functions
+          - --exclude=migrations
+          - --exclude=tests
+          - notification_service
+          - core
+
+  # ============================================================================
+  # Security Checks
+  # ============================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        args:
+          - --configfile=pyproject.toml
+          - --severity-level=medium
+          - --confidence-level=medium
+          - --recursive
+          - --exclude=tests,migrations
+        additional_dependencies: ["bandit[toml]"]
+
+  # osv-scanner - dependency vulnerability scanner
+  # Configuration: osv-scanner.toml (automatically discovered)
+  - repo: https://github.com/google/osv-scanner
+    rev: v2.2.3
+    hooks:
+      - id: osv-scanner
+        args: ["--lockfile=poetry.lock:poetry.lock"]
+        files: ^(poetry\.lock|osv-scanner\.toml)$
+
+  # ============================================================================
+  # Python Modernization
+  # ============================================================================
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.0
+    hooks:
+      - id: pyupgrade
+        args: [--py314-plus]
+        exclude: ^(migrations/)
+
+  # ============================================================================
+  # Django Specific
+  # ============================================================================
+  - repo: https://github.com/adamchainz/django-upgrade
+    rev: 1.29.1
+    hooks:
+      - id: django-upgrade
+        args: [--target-version, "5.2"]
+        exclude: ^(migrations/)
+
+  # ============================================================================
+  # Poetry/Dependency Checks
+  # ============================================================================
+  - repo: local
+    hooks:
+      - id: poetry-check
+        name: poetry check
+        entry: poetry check
+        language: system
+        pass_filenames: false
+        files: pyproject.toml
+
+      - id: poetry-lock-check
+        name: poetry lock check
+        entry: poetry check --lock
+        language: system
+        pass_filenames: false
+        files: ^(pyproject.toml|poetry.lock)$
+
+  # ============================================================================
+  # Commit Message Validation
+  # ============================================================================
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.9.1
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+# Global settings
+fail_fast: false  # Run all hooks even if one fails
+
+# pre-commit.ci configuration
+ci:
+  autofix_commit_msg: |
+    chore(pre-commit-ci): auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ""
+  autoupdate_commit_msg: "chore(pre-commit-ci): pre-commit autoupdate"
+  autoupdate_schedule: weekly
+  skip:
+    # Skip local hooks - these require Poetry to be installed
+    - poetry-check
+    - poetry-lock-check
+  submodules: false

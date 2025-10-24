@@ -1,4 +1,7 @@
+"""URL routing configuration for core application."""
+
 from django.urls import path
+
 from .views import HealthCheckView
 
 urlpatterns = [

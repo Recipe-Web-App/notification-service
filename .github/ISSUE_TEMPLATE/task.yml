@@ -1,0 +1,121 @@
+name: Task
+description: Track development tasks and planned work
+title: "[Task]: "
+labels: ["task"]
+assignees:
+  - jsamuelsen11
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for tracking development tasks, work items, and planned implementation work.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: Detailed description of the task
+      placeholder: Describe what needs to be done...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Task Type
+      description: What type of task is this?
+      options:
+        - Implementation - New feature or functionality
+        - Refactoring - Code improvement without behavior change
+        - Technical Debt - Addressing existing technical debt
+        - Bug Fix - Fixing a known issue
+        - Testing - Adding or improving tests
+        - Documentation - Documentation updates
+        - DevOps - Infrastructure or deployment work
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component Area
+      description: Which component does this task affect?
+      options:
+        - API
+        - Database
+        - Authentication
+        - Notifications
+        - Configuration
+        - CI/CD
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: Task priority level
+      options:
+        - Critical - Must be done immediately
+        - High - Should be done soon
+        - Medium - Normal priority
+        - Low - Can be done later
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know when this task is complete?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: Testing Requirements
+      description: What testing is needed?
+      placeholder: |
+        - [ ] Unit tests added
+        - [ ] Integration tests added
+        - [ ] Manual testing completed
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation-notes
+    attributes:
+      label: Implementation Notes (Optional)
+      description: Technical notes, constraints, or considerations
+      placeholder: Technical details, dependencies, constraints...
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related Issues/PRs (Optional)
+      description: Link to related issues or pull requests
+      placeholder: |
+        - Relates to #123
+        - Blocks #456
+        - Blocked by #789
+
+  - type: dropdown
+    id: effort
+    attributes:
+      label: Estimated Effort (Optional)
+      description: Rough estimate of effort required
+      options:
+        - XS - Less than 1 hour
+        - S - 1-4 hours
+        - M - 1-2 days
+        - L - 3-5 days
+        - XL - More than 1 week

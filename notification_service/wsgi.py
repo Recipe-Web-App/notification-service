@@ -1,5 +1,4 @@
-"""
-WSGI config for notification_service project.
+"""WSGI config for notification_service project.
 
 It exposes the WSGI callable as a module-level variable named ``application``.
 

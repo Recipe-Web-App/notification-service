@@ -6,7 +6,7 @@ authors = [
     {name = "jsamuelsen",email = "jsamuelsen11@gmail.com"}
 ]
 readme = "README.md"
-requires-python = "~3.14"
+requires-python = "~=3.14"
 dependencies = [
     "django (>=5.2.7,<6.0.0)",
     "djangorestframework (>=3.16.1,<4.0.0)"
@@ -15,6 +15,187 @@ dependencies = [
 
 [tool.poetry.scripts]
 local = "run_local:main"
+
+[tool.poetry.group.dev.dependencies]
+# Pre-commit
+pre-commit = "^3.6.0"
+
+# Linting and Formatting
+ruff = "^0.8.0"
+isort = "^5.13.0"
+
+# Type Checking
+mypy = "^1.8.0"
+django-stubs = "^4.2.0"
+djangorestframework-stubs = "^3.14.0"
+types-requests = "^2.31.0"
+
+# Documentation Coverage
+interrogate = "^1.7.0"
+
+# Security
+bandit = {extras = ["toml"], version = "^1.7.0"}
+
+# Code Modernization
+django-upgrade = "^1.15.0"
+
+# Coverage
+coverage = "^7.4.0"
+
+# Commit messages
+commitizen = "^3.13.0"
+
+# ============================================================================
+# Tool Configurations
+# ============================================================================
+
+[tool.ruff]
+# Target Python 3.14
+target-version = "py314"
+line-length = 120
+
+# Exclude directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "migrations",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Enable comprehensive rule sets
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort (import sorting)
+    "N",      # pep8-naming
+    "D",      # pydocstyle (docstrings)
+    "UP",     # pyupgrade (modern Python syntax)
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "DJ",     # flake8-django
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented-out code)
+    "PL",     # pylint
+    "RUF",    # Ruff-specific rules
+]
+
+# Disable specific rules
+ignore = [
+    "D100",   # Missing docstring in public module (too strict)
+    "D104",   # Missing docstring in public package (too strict)
+    "D105",   # Missing docstring in magic method
+    "D107",   # Missing docstring in __init__
+    "D203",   # 1 blank line required before class docstring (conflicts with D211)
+    "D213",   # Multi-line docstring summary should start at the second line (conflicts with D212)
+    "PLR0913", # Too many arguments
+    "PLR2004", # Magic value used in comparison
+]
+
+# Allow fix for all enabled rules (when `--fix` is provided)
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, etc.
+"**/tests/**/*.py" = ["PLR2004", "S101", "ARG", "D"]
+"**/test_*.py" = ["PLR2004", "S101", "ARG", "D"]
+# Migrations can ignore all linting
+"**/migrations/**/*.py" = ["ALL"]
+# Settings can have many variables
+"**/settings.py" = ["ERA001"]
+
+[tool.ruff.lint.pydocstyle]
+# Use Google-style docstrings
+convention = "google"
+
+[tool.ruff.lint.isort]
+# Django-aware import sorting
+known-first-party = ["notification_service", "core"]
+section-order = ["future", "standard-library", "django", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.isort.sections]
+"django" = ["django", "rest_framework"]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+# Indent with 4 spaces
+indent-style = "space"
+# Respect magic trailing comma
+skip-magic-trailing-comma = false
+# Auto-detect line ending
+line-ending = "auto"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_gitignore = true
+known_django = ["django"]
+sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+skip = ["migrations", ".venv"]
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+plugins = ["mypy_django_plugin.main"]
+
+[[tool.mypy.overrides]]
+module = "*.migrations.*"
+ignore_errors = true
+
+[tool.django-stubs]
+django_settings_module = "notification_service.settings"
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-module = true
+ignore-nested-functions = true
+fail-under = 80
+verbose = 2
+exclude = ["migrations", "tests", "setup.py", "docs"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "migrations", ".venv"]
+skips = ["B101", "B601"]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "*/tests/*",
+    "*/migrations/*",
+    "manage.py",
+    "*/settings.py",
+    "*/__pycache__/*",
+    ".venv/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version"
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
