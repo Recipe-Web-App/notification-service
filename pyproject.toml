@@ -149,6 +149,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "**/migrations/**/*.py" = ["ALL"]
 # Settings can have many variables
 "**/settings.py" = ["ERA001"]
+# Test settings inherits from base settings via star import (Django pattern)
+"**/settings_test.py" = ["F403", "F401"]
 
 [tool.ruff.lint.pydocstyle]
 # Use Google-style docstrings
