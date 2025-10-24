@@ -18,7 +18,7 @@ local = "run_local:main"
 
 [tool.poetry.group.dev.dependencies]
 # Pre-commit
-pre-commit = "^3.6.0"
+pre-commit = "^4.3.0"
 
 # Linting and Formatting
 ruff = "^0.14.2"
