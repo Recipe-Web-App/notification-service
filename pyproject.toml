@@ -43,7 +43,7 @@ django-upgrade = "^1.15.0"
 coverage = "^7.4.0"
 
 # Commit messages
-commitizen = "^3.13.0"
+commitizen = "^4.9.1"
 
 # ============================================================================
 # Tool Configurations
