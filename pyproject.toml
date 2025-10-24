@@ -21,7 +21,7 @@ local = "run_local:main"
 pre-commit = "^3.6.0"
 
 # Linting and Formatting
-ruff = "^0.8.0"
+ruff = "^0.14.2"
 isort = "^5.13.0"
 
 # Type Checking
