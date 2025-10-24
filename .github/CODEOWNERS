@@ -1,0 +1,32 @@
+# Code Owners for notification-service
+# These owners will be automatically requested for review when someone opens a pull request.
+
+# Global ownership
+* @jsamuelsen11
+
+# Notification service code
+/notification_service/ @jsamuelsen11
+/core/ @jsamuelsen11
+
+# Configuration files
+pyproject.toml @jsamuelsen11
+poetry.lock @jsamuelsen11
+manage.py @jsamuelsen11
+
+# Docker files
+Dockerfile @jsamuelsen11
+docker-compose*.yml @jsamuelsen11
+.dockerignore @jsamuelsen11
+
+# GitHub configuration
+/.github/ @jsamuelsen11
+
+# Documentation
+*.md @jsamuelsen11
+/docs/ @jsamuelsen11
+
+# CI/CD workflows
+/.github/workflows/ @jsamuelsen11
+
+# Database migrations
+*/migrations/ @jsamuelsen11

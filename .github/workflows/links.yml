@@ -1,0 +1,89 @@
+name: Link Checker
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**.md'
+      - 'docs/**'
+  schedule:
+    # Run weekly on Sundays at 6 AM UTC
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  link-check:
+    name: Check Broken Links
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check links in markdown files
+      id: lychee
+      uses: lycheeverse/lychee-action@v2
+      with:
+        args: |
+          --verbose
+          --no-progress
+          --exclude-mail
+          --exclude 'localhost'
+          --exclude '127.0.0.1'
+          --exclude-path '.github/ISSUE_TEMPLATE'
+          --exclude-path 'vendor'
+          --exclude-path 'node_modules'
+          --max-retries 3
+          --timeout 20
+          '**/*.md'
+        fail: true
+        output: lychee-report.md
+        format: markdown
+
+    - name: Generate link report summary
+      if: always()
+      run: |
+        if [ -f lychee-report.md ]; then
+          echo "## 🔗 Link Check Report" > link-summary.md
+          echo "" >> link-summary.md
+          echo "**Status:** ❌ Broken links detected" >> link-summary.md
+          echo "" >> link-summary.md
+          cat lychee-report.md >> link-summary.md
+        else
+          echo "## 🔗 Link Check Report" > link-summary.md
+          echo "" >> link-summary.md
+          echo "**Status:** ✅ All links are valid!" >> link-summary.md
+        fi
+
+    - name: Upload link report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: link-check-report
+        path: link-summary.md
+        retention-days: 30
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request' && failure()
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: links
+        path: link-summary.md
+
+    - name: Comment success on PR
+      if: github.event_name == 'pull_request' && success()
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: links
+        message: |
+          ## 🔗 Link Check Passed
+
+          ✅ All links in documentation are valid!

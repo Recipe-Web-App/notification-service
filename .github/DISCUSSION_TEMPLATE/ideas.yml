@@ -1,0 +1,39 @@
+labels: [idea]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share your ideas for new features or improvements to the notification service!
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea Description
+      description: What's your idea?
+      placeholder: Describe your idea for a new feature or improvement...
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: What problem does this solve or what use case does it enable?
+      placeholder: Why would this be useful?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How might this work?
+      placeholder: How would you implement this idea?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other information
+      placeholder: Examples, mockups, links to similar features...

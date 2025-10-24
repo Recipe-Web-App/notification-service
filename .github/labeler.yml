@@ -1,0 +1,71 @@
+# PR Labeler Configuration for notification-service
+
+# Dependencies
+dependencies:
+  - pyproject.toml
+  - poetry.lock
+  - requirements.txt
+  - requirements*.txt
+
+# Documentation
+documentation:
+  - "**/*.md"
+  - docs/**/*
+  - "**/*.rst"
+
+# GitHub configuration
+github:
+  - .github/**/*
+
+# Workflows
+github-actions:
+  - .github/workflows/**/*
+
+# Docker
+docker:
+  - Dockerfile
+  - docker-compose*.yml
+  - .dockerignore
+
+# Configuration
+configuration:
+  - "**/*.yml"
+  - "**/*.yaml"
+  - "**/*.json"
+  - "**/*.toml"
+  - .env.example
+  - "*/settings.py"
+  - "*/settings/**/*"
+
+# Python source code
+python:
+  - "**/*.py"
+  - notification_service/**/*.py
+  - core/**/*.py
+
+# Tests
+tests:
+  - "**/test_*.py"
+  - "**/tests/**/*"
+  - "**/*_test.py"
+
+# Database
+database:
+  - "**/migrations/**/*"
+  - "**/models.py"
+
+# API
+api:
+  - "**/views.py"
+  - "**/serializers.py"
+  - "**/urls.py"
+  - "**/viewsets.py"
+
+# Scripts
+scripts:
+  - scripts/**/*
+  - "**/*.sh"
+
+# Django admin
+admin:
+  - "**/admin.py"

@@ -1,0 +1,149 @@
+name: Performance Issue
+description: Report performance degradation or optimization opportunities
+title: "[Performance]: "
+labels: ["performance", "needs-triage"]
+assignees:
+  - jsamuelsen11
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to report performance issues, slow API endpoints, or optimization opportunities.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Performance Issue Description
+      description: Describe the performance problem
+      placeholder: What is slow or inefficient?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which component has the performance issue?
+      options:
+        - API Endpoint
+        - Database Query
+        - Background Job
+        - Notification Delivery
+        - Authentication
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Impact Severity
+      description: How severe is the performance impact?
+      options:
+        - Critical - Service unusable or timing out
+        - High - Significantly impacting user experience
+        - Medium - Noticeable but manageable
+        - Low - Minor optimization opportunity
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Performance Metrics
+      description: Provide actual performance numbers
+      placeholder: |
+        - Current response time: 5000ms
+        - Expected response time: < 500ms
+        - Database query time: 4500ms
+        - Number of queries: 50+
+        - Memory usage: 500MB
+      value: |
+        - Current response time:
+        - Expected response time:
+        - Database query time:
+        - Number of queries:
+        - Memory usage:
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this performance issue?
+      placeholder: |
+        1. Call API endpoint /api/v1/notifications/
+        2. With 1000+ notifications in database
+        3. Observe response time
+    validations:
+      required: true
+
+  - type: textarea
+    id: load
+    attributes:
+      label: Load Characteristics
+      description: Under what load does this occur?
+      placeholder: |
+        - Number of concurrent users: 100
+        - Data volume: 10,000 records
+        - Request rate: 100 req/sec
+      value: |
+        - Number of concurrent users:
+        - Data volume:
+        - Request rate:
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Where is this performance issue observed?
+      placeholder: |
+        - Environment: Production / Staging / Local
+        - Python version: 3.14
+        - Django version: 5.2.7
+        - Database: SQLite / PostgreSQL
+        - Server specs: 2 CPU, 4GB RAM
+      value: |
+        - Environment:
+        - Python version:
+        - Django version:
+        - Database:
+        - Server specs:
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration
+      description: Relevant configuration settings
+      placeholder: |
+        - DEBUG mode: True/False
+        - Database connection pool size:
+        - Cache enabled: Yes/No
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: Profiling Data (Optional)
+      description: Django Debug Toolbar output, profiling results, slow query logs
+      placeholder: Paste profiling output, SQL queries, or performance analysis...
+      render: shell
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution (Optional)
+      description: Ideas for improving performance
+      placeholder: |
+        - Add database indexes on columns X, Y
+        - Use select_related() for foreign keys
+        - Implement caching for endpoint Z
+        - Add pagination
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information about the performance issue
+      placeholder: Related metrics, trends over time, comparison with similar endpoints...

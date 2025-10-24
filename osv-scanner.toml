@@ -1,0 +1,7 @@
+# osv-scanner configuration
+# Documentation: https://google.github.io/osv-scanner/configuration/
+
+[[IgnoredVulns]]
+id = "PYSEC-2022-42969"
+ignoreUntil = 2025-12-31
+reason = "py 1.11.0 required by interrogate (dev only). ReDoS in SVN parsing not used by interrogate. Library deprecated, no fix available."

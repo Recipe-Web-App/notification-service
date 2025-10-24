@@ -1,0 +1,117 @@
+name: Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees:
+  - jsamuelsen11
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide detailed information.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve?
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+      placeholder: Describe your proposed solution...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What alternative solutions have you considered?
+      placeholder: Describe alternatives...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component Area
+      description: Which area does this feature affect?
+      options:
+        - API
+        - Database
+        - Authentication
+        - Notifications
+        - Configuration
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature?
+      options:
+        - Critical - Blocking major functionality
+        - High - Important for many users
+        - Medium - Nice to have
+        - Low - Minor improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Describe your specific use case
+      placeholder: How will this feature be used in practice?
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-design
+    attributes:
+      label: API Design (Optional)
+      description: For API changes, describe the proposed endpoint design
+      placeholder: |
+        POST /api/v1/notifications/
+        {
+          "type": "email",
+          "recipient": "user@example.com"
+        }
+      render: json
+
+  - type: checkboxes
+    id: breaking
+    attributes:
+      label: Breaking Changes
+      description: Will this feature introduce breaking changes?
+      options:
+        - label: This feature may introduce breaking changes
+          required: false
+        - label: I have considered backwards compatibility
+          required: false
+
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Security Considerations
+      description: Security implications of this feature
+      options:
+        - label: This feature has security implications that should be reviewed
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information about the feature
+      placeholder: Mockups, examples from other services, related features...

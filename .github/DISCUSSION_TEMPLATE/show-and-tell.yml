@@ -1,0 +1,47 @@
+labels: [show-and-tell]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share what you've built with the notification service! We'd love to see your implementations.
+
+  - type: textarea
+    id: project
+    attributes:
+      label: What Did You Build?
+      description: Tell us about your project
+      placeholder: Describe what you built using the notification service...
+    validations:
+      required: true
+
+  - type: textarea
+    id: usage
+    attributes:
+      label: How Are You Using the Notification Service?
+      description: How does the notification service fit into your project?
+      placeholder: How are you using notifications in your application?
+    validations:
+      required: true
+
+  - type: textarea
+    id: challenges
+    attributes:
+      label: Interesting Challenges or Solutions
+      description: Any interesting problems you solved?
+      placeholder: Share any interesting technical challenges or creative solutions...
+
+  - type: textarea
+    id: demo
+    attributes:
+      label: Screenshots or Demo (Optional)
+      description: Show us what you built
+      placeholder: |
+        Add screenshots, links to demo, or video walkthrough...
+
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Feedback for the Project
+      description: Any feedback or suggestions?
+      placeholder: What could be improved? What features would help?
