@@ -1,0 +1,12 @@
+---
+# k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: notification-service
+  labels:
+    app: notification-service
+    environment: production
+    team: recipe-app
+  annotations:
+    description: 'Notification Service namespace for Django notification management'

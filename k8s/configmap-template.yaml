@@ -1,0 +1,18 @@
+---
+# k8s/configmap-template.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-config
+  namespace: notification-service
+  labels:
+    app: notification-service
+data:
+  # Database Configuration
+  POSTGRES_HOST: '${POSTGRES_HOST}'
+  POSTGRES_PORT: '${POSTGRES_PORT}'
+  POSTGRES_DB: '${POSTGRES_DB}'
+  POSTGRES_SCHEMA: '${POSTGRES_SCHEMA}'
+
+  # Notification Service Database User
+  NOTIFICATION_SERVICE_DB_USER: '${NOTIFICATION_SERVICE_DB_USER}'

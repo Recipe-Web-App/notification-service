@@ -9,12 +9,14 @@ readme = "README.md"
 requires-python = "~=3.14"
 dependencies = [
     "django (>=5.2.7,<6.0.0)",
-    "djangorestframework (>=3.16.1,<4.0.0)"
+    "djangorestframework (>=3.16.1,<4.0.0)",
+    "gunicorn (>=23.0.0,<24.0.0)"
 ]
 
 
 [tool.poetry.scripts]
 local = "run_local:main"
+start = "start_server:main"
 
 # Test commands
 test-all = "tests.run_tests:run_all"

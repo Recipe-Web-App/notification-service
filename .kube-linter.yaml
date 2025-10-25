@@ -1,0 +1,22 @@
+# kube-linter configuration for notification-service
+# See https://docs.kubelinter.io for more information
+
+checks:
+  # Enable all default checks
+  doNotAutoAddDefaults: false
+
+  # Add additional checks
+  addAllBuiltIn: false
+
+  # Exclude specific checks that don't apply
+  exclude:
+    - "no-anti-affinity"  # Not needed for single-replica deployments
+    - "latest-tag"  # Minikube local development uses latest tag
+    - "dangling-service"  # False positive when linting individual files
+
+# Custom checks configuration
+customChecks: []
+
+# Files to ignore (templates, examples, etc.)
+ignore:
+  - "k8s/*-template.yaml"  # Ignore template files with variable substitution
