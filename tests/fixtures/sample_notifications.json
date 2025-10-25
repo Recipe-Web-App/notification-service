@@ -1,0 +1,12 @@
+[
+  {
+    "model": "core.notification",
+    "pk": 1,
+    "fields": {
+      "recipient": "fixture@example.com",
+      "message": "Fixture notification",
+      "type": "email",
+      "status": "sent"
+    }
+  }
+]
