@@ -26,15 +26,15 @@ test-coverage = "tests.run_tests:run_coverage"
 
 [tool.poetry.group.dev.dependencies]
 # Pre-commit
-pre-commit = "^3.6.0"
+pre-commit = "^4.3.0"
 
 # Linting and Formatting
-ruff = "^0.14.0"
-isort = "^5.13.0"
+ruff = "^0.14.2"
+isort = "^7.0.0"
 
 # Type Checking
 mypy = "^1.8.0"
-django-stubs = "^4.2.0"
+django-stubs = "^5.2.7"
 djangorestframework-stubs = "^3.14.0"
 types-requests = "^2.31.0"
 
@@ -51,7 +51,7 @@ django-upgrade = "^1.15.0"
 coverage = "^7.4.0"
 
 # Commit messages
-commitizen = "^3.13.0"
+commitizen = "^4.9.1"
 
 [tool.poetry.group.test.dependencies]
 # Testing frameworks
