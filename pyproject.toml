@@ -64,6 +64,7 @@ factory-boy = "^3.3.0"
 faker = "^22.0.0"
 
 # HTTP mocking
+requests = "^2.31.0"
 responses = "^0.24.0"
 requests-mock = "^1.11.0"
 
