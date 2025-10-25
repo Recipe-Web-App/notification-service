@@ -50,11 +50,12 @@ def run_dependency():
 
 
 def run_performance():
-    """Run performance tests with Locust."""
-    print("Starting Locust for performance testing...")
-    print("Access the Locust UI at http://localhost:8089")
+    """Run performance tests with Locust in headless mode."""
+    print("Running performance tests...")
     exit_code = run_command(
-        "locust -f tests/performance/locustfile_notifications.py --host=http://localhost:8000"
+        "locust -f tests/performance/locustfile_notifications.py "
+        "--headless --users 10 --spawn-rate 2 --run-time 10s "
+        "--host=http://localhost:8000"
     )
     sys.exit(exit_code)
 
