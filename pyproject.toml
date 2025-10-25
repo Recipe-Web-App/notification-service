@@ -88,7 +88,7 @@ moto = {extras = ["sqs", "s3"], version = "^5.0.0"}
 [tool.ruff]
 # Target Python 3.14
 target-version = "py314"
-line-length = 120
+line-length = 88
 
 # Exclude directories
 exclude = [
@@ -106,7 +106,6 @@ select = [
     "E",      # pycodestyle errors
     "W",      # pycodestyle warnings
     "F",      # pyflakes
-    "I",      # isort (import sorting)
     "N",      # pep8-naming
     "D",      # pydocstyle (docstrings)
     "UP",     # pyupgrade (modern Python syntax)
@@ -176,7 +175,7 @@ line-ending = "auto"
 
 [tool.isort]
 profile = "black"
-line_length = 120
+line_length = 88
 skip_gitignore = true
 known_django = ["django"]
 sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]

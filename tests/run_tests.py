@@ -13,28 +13,39 @@ def run_command(command):
 def run_all():
     """Run all tests (unit, component, dependency)."""
     print("Running all tests...")
-    exit_code = run_command("python manage.py test tests.unit tests.component tests.dependency")
+    exit_code = run_command(
+        "python manage.py test tests.unit tests.component tests.dependency "
+        "--settings=notification_service.settings_test"
+    )
     sys.exit(exit_code)
 
 
 def run_unit():
     """Run unit tests only."""
     print("Running unit tests...")
-    exit_code = run_command("python manage.py test tests.unit")
+    exit_code = run_command(
+        "python manage.py test tests.unit --settings=notification_service.settings_test"
+    )
     sys.exit(exit_code)
 
 
 def run_component():
     """Run component tests only."""
     print("Running component tests...")
-    exit_code = run_command("python manage.py test tests.component")
+    exit_code = run_command(
+        "python manage.py test tests.component "
+        "--settings=notification_service.settings_test"
+    )
     sys.exit(exit_code)
 
 
 def run_dependency():
     """Run dependency tests only."""
     print("Running dependency tests...")
-    exit_code = run_command("python manage.py test tests.dependency")
+    exit_code = run_command(
+        "python manage.py test tests.dependency "
+        "--settings=notification_service.settings_test"
+    )
     sys.exit(exit_code)
 
 
@@ -42,7 +53,9 @@ def run_performance():
     """Run performance tests with Locust."""
     print("Starting Locust for performance testing...")
     print("Access the Locust UI at http://localhost:8089")
-    exit_code = run_command("locust -f tests/performance/locustfile_notifications.py --host=http://localhost:8000")
+    exit_code = run_command(
+        "locust -f tests/performance/locustfile_notifications.py --host=http://localhost:8000"
+    )
     sys.exit(exit_code)
 
 
@@ -51,7 +64,11 @@ def run_coverage():
     print("Running tests with coverage...")
     commands = [
         "coverage erase",
-        "coverage run --source='.' manage.py test tests.unit tests.component tests.dependency",
+        (
+            "coverage run --source='.' manage.py test "
+            "tests.unit tests.component tests.dependency "
+            "--settings=notification_service.settings_test"
+        ),
         "coverage report",
         "coverage html",
     ]
