@@ -34,7 +34,6 @@ ENV/
 
 # Poetry
 .poetry/
-poetry.lock
 
 # Testing
 .tox/
