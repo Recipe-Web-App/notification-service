@@ -18,6 +18,14 @@ services:
       - DEBUG=True
       - ALLOWED_HOSTS=localhost,127.0.0.1
       - SECRET_KEY=dev-secret-key-change-in-production
+      # Redis configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_PASSWORD=
+      # Rate limiting configuration
+      - RATE_LIMIT_REQUESTS=100
+      - RATE_LIMIT_WINDOW=60
       # Add other environment variables as needed
     stdin_open: true
     tty: true
@@ -43,21 +51,19 @@ services:
   #     - "5432:5432"
   #   restart: unless-stopped
 
-  # Uncomment when you add Redis
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: notification-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis_data:/data
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-# volumes:
-#   postgres_data:
-#   redis_data:
+volumes:
+  redis_data:
