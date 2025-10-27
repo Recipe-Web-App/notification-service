@@ -63,7 +63,7 @@ commitizen = "^4.9.1"
 # Testing frameworks
 pytest = "^8.0.0"
 pytest-django = "^4.7.0"
-pytest-cov = "^4.1.0"
+pytest-cov = "^7.0.0"
 
 # Test data generation
 factory-boy = "^3.3.0"
