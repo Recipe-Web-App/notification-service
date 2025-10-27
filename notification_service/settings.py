@@ -17,10 +17,25 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env file (local development)
-# In production/K8s, .env won't exist and K8s env vars will be used
-env_path = BASE_DIR / ".env"
+# Load environment variables from .env.local (local development)
+# In production/K8s, .env.local won't exist and K8s env vars will be used
+env_path = BASE_DIR / ".env.local"
 load_dotenv(dotenv_path=env_path, override=False)
+
+# Logging Configuration
+# These environment variables configure the structlog-based logging system
+LOG_FILE_PATH = os.getenv(
+    "LOG_FILE_PATH", str(BASE_DIR / "logs" / "notification-service.log")
+)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+SERVICE_NAME = os.getenv("SERVICE_NAME", "notification-service")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+# Initialize structlog logging configuration
+# This must be done early, before any logging occurs
+from core.logging import setup_logging  # noqa: E402
+
+setup_logging()
 
 
 # Quick-start development settings - unsuitable for production
@@ -215,47 +230,3 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
     "x-request-id",
 ]
-
-# Logging Configuration
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "filters": {
-        "request_id": {
-            "()": "core.logging.filters.RequestIDFilter",
-        },
-    },
-    "formatters": {
-        "verbose": {
-            "format": "[{levelname}] [{request_id}] {name}: {message}",
-            "style": "{",
-        },
-        "simple": {
-            "format": "[{levelname}] {message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "verbose",
-            "filters": ["request_id"],
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-        "level": os.environ.get("LOG_LEVEL", "INFO"),
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO"),
-            "propagate": False,
-        },
-        "core": {
-            "handlers": ["console"],
-            "level": os.environ.get("LOG_LEVEL", "INFO"),
-            "propagate": False,
-        },
-    },
-}

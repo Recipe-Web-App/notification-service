@@ -85,12 +85,16 @@ curl http://notification-service.local/api/v1/notification/health/
 
 ### Environment Configuration
 
+This project uses two separate environment files depending on your use case:
+
+#### For Local Development
+
 1. Copy the example environment file:
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
-2. Update `.env` with your configuration:
+2. Update `.env.local` with your local configuration:
 ```bash
 # Database Configuration
 POSTGRES_HOST=localhost
@@ -102,6 +106,19 @@ POSTGRES_SCHEMA=notifications
 NOTIFICATION_SERVICE_DB_USER=notification_user
 NOTIFICATION_SERVICE_DB_PASSWORD=your_secure_password_here
 ```
+
+The Django application (`notification_service/settings.py`) will automatically load `.env.local` when running locally.
+
+#### For Container/Kubernetes Deployment
+
+1. Copy the example environment file:
+```bash
+cp .env.example .env.prod
+```
+
+2. Update `.env.prod` with your production/container configuration. This file is sourced by the container management scripts (`scripts/containerManagement/`) to populate Kubernetes ConfigMaps and Secrets.
+
+**Note**: In production Kubernetes deployments, environment variables are provided via ConfigMap and Secrets. The `.env.prod` file is only used by deployment scripts to generate these resources.
 
 ### Container Management Scripts
 
