@@ -32,4 +32,10 @@ class TestHealthCheckEndpointDependency(LiveServerTestCase):
             f"{self.live_server_url}/api/v1/notification/health/ready"
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ready"})
+
+        data = response.json()
+        # Should be either ready or degraded, but always return 200
+        self.assertIn(data["status"], ["ready", "degraded"])
+        self.assertTrue(data["ready"])
+        self.assertIn("dependencies", data)
+        self.assertIn("database", data["dependencies"])
