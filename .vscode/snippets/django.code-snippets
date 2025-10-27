@@ -1,0 +1,485 @@
+{
+  // ============================================================================
+  // Django Models
+  // ============================================================================
+  "Django Model": {
+    "prefix": "dj-model",
+    "body": [
+      "from django.db import models",
+      "",
+      "",
+      "class ${1:ModelName}(models.Model):  # noqa: D101",
+      "    \"\"\"${2:Model description}.",
+      "    ",
+      "    Attributes:",
+      "        ${3:field_name}: ${4:Field description}",
+      "    \"\"\"",
+      "",
+      "    ${3:field_name} = models.${5:CharField}(${6:max_length=255})",
+      "    created_at = models.DateTimeField(auto_now_add=True)",
+      "    updated_at = models.DateTimeField(auto_now=True)",
+      "",
+      "    class Meta:  # noqa: D106",
+      "        db_table = \"${7:table_name}\"",
+      "        verbose_name = \"${1:ModelName}\"",
+      "        verbose_name_plural = \"${1:ModelName}s\"",
+      "        ordering = [\"-created_at\"]",
+      "",
+      "    def __str__(self) -> str:",
+      "        \"\"\"String representation.\"\"\"",
+      "        return f\"{self.${3:field_name}}\"",
+      "$0"
+    ],
+    "description": "Django model with common fields and Meta class"
+  },
+
+  "Django Model Field": {
+    "prefix": "dj-field",
+    "body": [
+      "${1:field_name} = models.${2:CharField}(${3:max_length=255}${4:, blank=True, null=True})"
+    ],
+    "description": "Django model field"
+  },
+
+  // ============================================================================
+  // Django REST Framework Serializers
+  // ============================================================================
+  "DRF ModelSerializer": {
+    "prefix": "drf-serializer",
+    "body": [
+      "from rest_framework import serializers",
+      "from ${1:app}.models import ${2:ModelName}",
+      "",
+      "",
+      "class ${2:ModelName}Serializer(serializers.ModelSerializer):  # noqa: D101",
+      "    \"\"\"Serializer for ${2:ModelName} model.",
+      "    ",
+      "    Fields:",
+      "        ${3:field_name}: ${4:Field description}",
+      "    \"\"\"",
+      "",
+      "    class Meta:  # noqa: D106",
+      "        model = ${2:ModelName}",
+      "        fields = [",
+      "            \"id\",",
+      "            \"${3:field_name}\",",
+      "            \"created_at\",",
+      "            \"updated_at\",",
+      "        ]",
+      "        read_only_fields = [\"id\", \"created_at\", \"updated_at\"]",
+      "$0"
+    ],
+    "description": "Django REST Framework ModelSerializer"
+  },
+
+  "DRF Serializer": {
+    "prefix": "drf-base-serializer",
+    "body": [
+      "from rest_framework import serializers",
+      "",
+      "",
+      "class ${1:SerializerName}(serializers.Serializer):  # noqa: D101",
+      "    \"\"\"${2:Serializer description}.",
+      "    ",
+      "    Fields:",
+      "        ${3:field_name}: ${4:Field description}",
+      "    \"\"\"",
+      "",
+      "    ${3:field_name} = serializers.${5:CharField}(${6:max_length=255})",
+      "$0"
+    ],
+    "description": "Django REST Framework base Serializer"
+  },
+
+  // ============================================================================
+  // Django REST Framework Views
+  // ============================================================================
+  "DRF ViewSet": {
+    "prefix": "drf-viewset",
+    "body": [
+      "from rest_framework import viewsets",
+      "from rest_framework.permissions import IsAuthenticated",
+      "",
+      "from ${1:app}.models import ${2:ModelName}",
+      "from ${1:app}.serializers import ${2:ModelName}Serializer",
+      "",
+      "",
+      "class ${2:ModelName}ViewSet(viewsets.ModelViewSet):  # noqa: D101",
+      "    \"\"\"ViewSet for ${2:ModelName} model.",
+      "    ",
+      "    Provides CRUD operations for ${2:ModelName} instances.",
+      "    \"\"\"",
+      "",
+      "    queryset = ${2:ModelName}.objects.all()",
+      "    serializer_class = ${2:ModelName}Serializer",
+      "    permission_classes = [IsAuthenticated]",
+      "$0"
+    ],
+    "description": "Django REST Framework ModelViewSet"
+  },
+
+  "DRF APIView": {
+    "prefix": "drf-apiview",
+    "body": [
+      "from rest_framework.views import APIView",
+      "from rest_framework.response import Response",
+      "from rest_framework import status",
+      "from rest_framework.permissions import IsAuthenticated",
+      "",
+      "",
+      "class ${1:ViewName}(APIView):  # noqa: D101",
+      "    \"\"\"${2:View description}.",
+      "    ",
+      "    Handles ${3:operations description}.",
+      "    \"\"\"",
+      "",
+      "    permission_classes = [IsAuthenticated]",
+      "",
+      "    def ${4|get,post,put,patch,delete|}(self, request, *args, **kwargs):",
+      "        \"\"\"${5:Method description}.\"\"\"",
+      "        $0",
+      "        return Response({}, status=status.HTTP_200_OK)"
+    ],
+    "description": "Django REST Framework APIView"
+  },
+
+  // ============================================================================
+  // Django Function-Based Views
+  // ============================================================================
+  "Django Function View": {
+    "prefix": "dj-view-func",
+    "body": [
+      "from django.shortcuts import render",
+      "from django.http import HttpRequest, HttpResponse",
+      "",
+      "",
+      "def ${1:view_name}(request: HttpRequest) -> HttpResponse:",
+      "    \"\"\"${2:View description}.",
+      "    ",
+      "    Args:",
+      "        request: HTTP request object",
+      "    ",
+      "    Returns:",
+      "        HTTP response",
+      "    \"\"\"",
+      "    $0",
+      "    return render(request, \"${3:template.html}\", {})"
+    ],
+    "description": "Django function-based view"
+  },
+
+  // ============================================================================
+  // Pydantic Schemas
+  // ============================================================================
+  "Pydantic Schema": {
+    "prefix": "pydantic-schema",
+    "body": [
+      "from pydantic import BaseModel, Field",
+      "",
+      "",
+      "class ${1:SchemaName}(BaseModel):  # noqa: D101",
+      "    \"\"\"${2:Schema description}.",
+      "    ",
+      "    Attributes:",
+      "        ${3:field_name}: ${4:Field description}",
+      "    \"\"\"",
+      "",
+      "    ${3:field_name}: ${5:str} = Field(",
+      "        ...,",
+      "        description=\"${4:Field description}\",",
+      "    )",
+      "",
+      "    class Config:  # noqa: D106",
+      "        frozen = True",
+      "$0"
+    ],
+    "description": "Pydantic schema with field validation"
+  },
+
+  "Pydantic Field": {
+    "prefix": "pydantic-field",
+    "body": [
+      "${1:field_name}: ${2:str} = Field(",
+      "    ${3:...},",
+      "    description=\"${4:Field description}\",",
+      ")"
+    ],
+    "description": "Pydantic field with description"
+  },
+
+  // ============================================================================
+  // Repository Pattern
+  // ============================================================================
+  "Repository Class": {
+    "prefix": "repo-class",
+    "body": [
+      "from typing import TYPE_CHECKING",
+      "",
+      "from django.db.models import QuerySet",
+      "",
+      "if TYPE_CHECKING:",
+      "    from ${1:app}.models import ${2:ModelName}",
+      "",
+      "",
+      "class ${2:ModelName}Repository:  # noqa: D101",
+      "    \"\"\"Repository for ${2:ModelName} database operations.",
+      "    ",
+      "    Provides an abstraction layer for ${2:ModelName} database access.",
+      "    \"\"\"",
+      "",
+      "    @staticmethod",
+      "    def get_all() -> QuerySet[\"${2:ModelName}\"]:",
+      "        \"\"\"Get all ${2:ModelName} instances.",
+      "        ",
+      "        Returns:",
+      "            QuerySet of all ${2:ModelName} instances",
+      "        \"\"\"",
+      "        from ${1:app}.models import ${2:ModelName}",
+      "",
+      "        return ${2:ModelName}.objects.all()",
+      "",
+      "    @staticmethod",
+      "    def get_by_id(id: int) -> \"${2:ModelName}\" | None:",
+      "        \"\"\"Get ${2:ModelName} by ID.",
+      "        ",
+      "        Args:",
+      "            id: Primary key of the ${2:ModelName}",
+      "        ",
+      "        Returns:",
+      "            ${2:ModelName} instance or None if not found",
+      "        \"\"\"",
+      "        from ${1:app}.models import ${2:ModelName}",
+      "",
+      "        return ${2:ModelName}.objects.filter(id=id).first()",
+      "",
+      "    @staticmethod",
+      "    def create(${3:**kwargs}) -> \"${2:ModelName}\":",
+      "        \"\"\"Create a new ${2:ModelName} instance.",
+      "        ",
+      "        Args:",
+      "            ${3:**kwargs}: Field values for the new instance",
+      "        ",
+      "        Returns:",
+      "            Created ${2:ModelName} instance",
+      "        \"\"\"",
+      "        from ${1:app}.models import ${2:ModelName}",
+      "",
+      "        return ${2:ModelName}.objects.create(${3:**kwargs})",
+      "$0"
+    ],
+    "description": "Repository pattern class for database operations"
+  },
+
+  // ============================================================================
+  // Service Pattern
+  // ============================================================================
+  "Service Class": {
+    "prefix": "service-class",
+    "body": [
+      "from typing import TYPE_CHECKING",
+      "",
+      "if TYPE_CHECKING:",
+      "    from ${1:app}.models import ${2:ModelName}",
+      "",
+      "",
+      "class ${3:ServiceName}:  # noqa: D101",
+      "    \"\"\"${4:Service description}.",
+      "    ",
+      "    Handles ${5:business logic description}.",
+      "    \"\"\"",
+      "",
+      "    def __init__(self${6:, dependency: DependencyType}) -> None:",
+      "        \"\"\"Initialize the service.",
+      "        ",
+      "        Args:",
+      "            ${7:dependency: Dependency description}",
+      "        \"\"\"",
+      "        ${8:self.dependency = dependency}",
+      "",
+      "    def ${9:method_name}(self${10:, param: ParamType}) -> ${11:ReturnType}:",
+      "        \"\"\"${12:Method description}.",
+      "        ",
+      "        Args:",
+      "            ${13:param: Parameter description}",
+      "        ",
+      "        Returns:",
+      "            ${14:Return description}",
+      "        \"\"\"",
+      "        $0"
+    ],
+    "description": "Service pattern class for business logic"
+  },
+
+  // ============================================================================
+  // Django Testing
+  // ============================================================================
+  "Pytest Django Test": {
+    "prefix": "pytest-test",
+    "body": [
+      "import pytest",
+      "from django.test import Client",
+      "",
+      "",
+      "@pytest.mark.django_db",
+      "class Test${1:FeatureName}:  # noqa: D101",
+      "    \"\"\"Tests for ${2:feature description}.\"\"\"",
+      "",
+      "    def test_${3:test_name}(self${4:, client: Client}) -> None:",
+      "        \"\"\"${5:Test description}.",
+      "        ",
+      "        Args:",
+      "            ${6:client: Django test client}",
+      "        \"\"\"",
+      "        $0",
+      "        assert True"
+    ],
+    "description": "Pytest test class for Django"
+  },
+
+  "Pytest Fixture": {
+    "prefix": "pytest-fixture",
+    "body": [
+      "@pytest.fixture",
+      "def ${1:fixture_name}()${2: -> ${3:ReturnType}}:",
+      "    \"\"\"${4:Fixture description}.",
+      "    ",
+      "    Returns:",
+      "        ${5:Return description}",
+      "    \"\"\"",
+      "    $0"
+    ],
+    "description": "Pytest fixture"
+  },
+
+  // ============================================================================
+  // Django Management Commands
+  // ============================================================================
+  "Django Management Command": {
+    "prefix": "dj-command",
+    "body": [
+      "from django.core.management.base import BaseCommand",
+      "",
+      "",
+      "class Command(BaseCommand):  # noqa: D101",
+      "    \"\"\"${1:Command description}.\"\"\"",
+      "",
+      "    help = \"${1:Command description}\"",
+      "",
+      "    def add_arguments(self, parser):",
+      "        \"\"\"Add command arguments.",
+      "        ",
+      "        Args:",
+      "            parser: Argument parser",
+      "        \"\"\"",
+      "        parser.add_argument(",
+      "            \"${2:arg_name}\",",
+      "            type=${3:str},",
+      "            help=\"${4:Argument description}\",",
+      "        )",
+      "",
+      "    def handle(self, *args, **options):",
+      "        \"\"\"Execute the command.",
+      "        ",
+      "        Args:",
+      "            *args: Positional arguments",
+      "            **options: Named arguments",
+      "        \"\"\"",
+      "        $0",
+      "        self.stdout.write(self.style.SUCCESS(\"Command completed successfully\"))"
+    ],
+    "description": "Django management command"
+  },
+
+  // ============================================================================
+  // Django Admin
+  // ============================================================================
+  "Django Admin": {
+    "prefix": "dj-admin",
+    "body": [
+      "from django.contrib import admin",
+      "from ${1:app}.models import ${2:ModelName}",
+      "",
+      "",
+      "@admin.register(${2:ModelName})",
+      "class ${2:ModelName}Admin(admin.ModelAdmin):  # noqa: D101",
+      "    \"\"\"Admin interface for ${2:ModelName}.\"\"\"",
+      "",
+      "    list_display = [\"id\", \"${3:field_name}\", \"created_at\", \"updated_at\"]",
+      "    list_filter = [\"created_at\", \"updated_at\"]",
+      "    search_fields = [\"${3:field_name}\"]",
+      "    ordering = [\"-created_at\"]",
+      "    readonly_fields = [\"created_at\", \"updated_at\"]",
+      "$0"
+    ],
+    "description": "Django admin registration"
+  },
+
+  // ============================================================================
+  // Django URLs
+  // ============================================================================
+  "Django URL Pattern": {
+    "prefix": "dj-url",
+    "body": [
+      "path(\"${1:route}/\", ${2:view_name}, name=\"${3:url_name}\"),"
+    ],
+    "description": "Django URL pattern"
+  },
+
+  "DRF Router": {
+    "prefix": "drf-router",
+    "body": [
+      "from django.urls import path, include",
+      "from rest_framework.routers import DefaultRouter",
+      "",
+      "from ${1:app}.views import ${2:ViewSet}",
+      "",
+      "router = DefaultRouter()",
+      "router.register(r\"${3:prefix}\", ${2:ViewSet}, basename=\"${4:basename}\")",
+      "",
+      "urlpatterns = [",
+      "    path(\"\", include(router.urls)),",
+      "]",
+      "$0"
+    ],
+    "description": "Django REST Framework router configuration"
+  },
+
+  // ============================================================================
+  // Docstrings
+  // ============================================================================
+  "Google Docstring": {
+    "prefix": "docstring",
+    "body": [
+      "\"\"\"${1:Summary}.",
+      "",
+      "${2:Extended description.}",
+      "",
+      "Args:",
+      "    ${3:param}: ${4:Description}",
+      "",
+      "Returns:",
+      "    ${5:Description}",
+      "",
+      "Raises:",
+      "    ${6:ExceptionType}: ${7:Description}",
+      "\"\"\"",
+      "$0"
+    ],
+    "description": "Google-style docstring"
+  },
+
+  // ============================================================================
+  // Common Patterns
+  // ============================================================================
+  "Type Checking Import": {
+    "prefix": "type-checking",
+    "body": [
+      "from typing import TYPE_CHECKING",
+      "",
+      "if TYPE_CHECKING:",
+      "    from ${1:module} import ${2:Type}",
+      "$0"
+    ],
+    "description": "TYPE_CHECKING import block"
+  }
+}
