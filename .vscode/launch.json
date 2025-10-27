@@ -1,0 +1,415 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    // ========================================================================
+    // Django Development Server
+    // ========================================================================
+    {
+      "name": "Django: Run Server (Development)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": [
+        "runserver",
+        "0.0.0.0:8000",
+        "--noreload"
+      ],
+      "django": true,
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "stopOnEntry": false,
+      "showReturnValue": true,
+      "presentation": {
+        "hidden": false,
+        "group": "django",
+        "order": 1
+      }
+    },
+    {
+      "name": "Django: Run Server (Test Settings)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": [
+        "runserver",
+        "0.0.0.0:8000",
+        "--noreload",
+        "--settings=notification_service.settings_test"
+      ],
+      "django": true,
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings_test",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "stopOnEntry": false,
+      "showReturnValue": true,
+      "presentation": {
+        "hidden": false,
+        "group": "django",
+        "order": 2
+      }
+    },
+    {
+      "name": "Django: Run Local (run_local.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run_local.py",
+      "args": [],
+      "django": true,
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "stopOnEntry": false,
+      "showReturnValue": true,
+      "presentation": {
+        "hidden": false,
+        "group": "django",
+        "order": 3
+      }
+    },
+
+    // ========================================================================
+    // Django Management Commands
+    // ========================================================================
+    {
+      "name": "Django: Management Command",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": [
+        "${command:pickArgs}"
+      ],
+      "django": true,
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "django",
+        "order": 4
+      }
+    },
+    {
+      "name": "Django: Migrate",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": [
+        "migrate"
+      ],
+      "django": true,
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "django",
+        "order": 5
+      }
+    },
+    {
+      "name": "Django: Make Migrations",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": [
+        "makemigrations"
+      ],
+      "django": true,
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "django",
+        "order": 6
+      }
+    },
+    {
+      "name": "Django: Shell",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": [
+        "shell"
+      ],
+      "django": true,
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "django",
+        "order": 7
+      }
+    },
+
+    // ========================================================================
+    // Pytest Testing
+    // ========================================================================
+    {
+      "name": "Pytest: All Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "tests",
+        "-v",
+        "--tb=short",
+        "--color=yes"
+      ],
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings_test",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "test",
+        "order": 1
+      }
+    },
+    {
+      "name": "Pytest: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "${file}",
+        "-v",
+        "--tb=short",
+        "--color=yes"
+      ],
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings_test",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "test",
+        "order": 2
+      }
+    },
+    {
+      "name": "Pytest: Current Test at Cursor",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "${file}::${selectedText}",
+        "-v",
+        "--tb=short",
+        "--color=yes"
+      ],
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings_test",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "test",
+        "order": 3
+      }
+    },
+    {
+      "name": "Pytest: Unit Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "tests/unit",
+        "-v",
+        "--tb=short",
+        "--color=yes"
+      ],
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings_test",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "test",
+        "order": 4
+      }
+    },
+    {
+      "name": "Pytest: Component Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "tests/component",
+        "-v",
+        "--tb=short",
+        "--color=yes"
+      ],
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings_test",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "test",
+        "order": 5
+      }
+    },
+    {
+      "name": "Pytest: Dependency Tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "tests/dependency",
+        "-v",
+        "--tb=short",
+        "--color=yes"
+      ],
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings_test",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "test",
+        "order": 6
+      }
+    },
+    {
+      "name": "Pytest: With Coverage",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "tests",
+        "-v",
+        "--tb=short",
+        "--cov=.",
+        "--cov-report=html",
+        "--cov-report=term",
+        "--color=yes"
+      ],
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DJANGO_SETTINGS_MODULE": "notification_service.settings_test",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": false,
+        "group": "test",
+        "order": 7
+      }
+    },
+
+    // ========================================================================
+    // Python Script Debugging
+    // ========================================================================
+    {
+      "name": "Python: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "presentation": {
+        "hidden": false,
+        "group": "python",
+        "order": 1
+      }
+    },
+
+    // ========================================================================
+    // Docker Debugging
+    // ========================================================================
+    {
+      "name": "Docker: Attach to Django",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/app"
+        }
+      ],
+      "django": true,
+      "justMyCode": false,
+      "presentation": {
+        "hidden": false,
+        "group": "docker",
+        "order": 1
+      }
+    }
+  ],
+  "compounds": []
+}

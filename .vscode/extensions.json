@@ -1,0 +1,107 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.
+  // Extension identifier format: ${publisher}.${name}. Example: vscode.csharp
+
+  // List of extensions which should be recommended for users of this workspace.
+  "recommendations": [
+    // ========================================================================
+    // Core Python Development
+    // ========================================================================
+    "ms-python.python",                     // Python IntelliSense, linting, debugging, code navigation
+    "ms-python.vscode-pylance",             // Fast, feature-rich Python language server
+    "ms-python.debugpy",                    // Python debugger
+
+    // ========================================================================
+    // Code Quality & Formatting
+    // ========================================================================
+    "charliermarsh.ruff",                   // Ruff - Fast Python linter and formatter
+
+    // ========================================================================
+    // Django Development
+    // ========================================================================
+    "batisteo.vscode-django",               // Django template support, snippets
+
+    // ========================================================================
+    // Testing
+    // ========================================================================
+    "littlefoxteam.vscode-python-test-adapter",  // Python Test Explorer
+    "ryanluker.vscode-coverage-gutters",    // Display test coverage in editor
+
+    // ========================================================================
+    // Docker & Containers
+    // ========================================================================
+    "ms-azuretools.vscode-docker",          // Docker support - Dockerfile, docker-compose
+    "ms-vscode-remote.remote-containers",   // Develop inside containers
+
+    // ========================================================================
+    // Database
+    // ========================================================================
+    "ckolkman.vscode-postgres",             // PostgreSQL client
+    "mtxr.sqltools",                        // SQL tools - multiple database support
+    "mtxr.sqltools-driver-pg",              // PostgreSQL driver for SQLTools
+
+    // ========================================================================
+    // Git & Version Control
+    // ========================================================================
+    "eamodio.gitlens",                      // Enhanced Git capabilities
+    "mhutchie.git-graph",                   // Git graph visualization
+    "github.vscode-pull-request-github",    // GitHub Pull Requests integration
+
+    // ========================================================================
+    // Code Intelligence & Navigation
+    // ========================================================================
+    "usernamehw.errorlens",                 // Inline error/warning display
+    "gruntfuggly.todo-tree",                // Show TODO, FIXME in tree view
+    "christian-kohler.path-intellisense",   // Autocomplete filenames
+    "wayou.vscode-todo-highlight",          // Highlight TODO, FIXME comments
+
+    // ========================================================================
+    // Code Documentation
+    // ========================================================================
+    "njpwerner.autodocstring",              // Auto-generate Python docstrings (Google style)
+    "aaron-bond.better-comments",           // Colored comments for different types
+
+    // ========================================================================
+    // File Format Support
+    // ========================================================================
+    "redhat.vscode-yaml",                   // YAML language support
+    "tamasfe.even-better-toml",             // TOML language support
+    "mikestead.dotenv",                     // .env file syntax highlighting
+
+    // ========================================================================
+    // Markdown
+    // ========================================================================
+    "yzhang.markdown-all-in-one",           // Markdown shortcuts, TOC, preview
+    "davidanson.vscode-markdownlint",       // Markdown linting
+
+    // ========================================================================
+    // Productivity & UI
+    // ========================================================================
+    "alefragnani.bookmarks",                // Mark lines and jump to them
+    "oderwat.indent-rainbow",               // Colorize indentation
+    "vscode-icons-team.vscode-icons",       // File icons
+    "pkief.material-icon-theme",            // Material Design icons (alternative)
+
+    // ========================================================================
+    // REST API Testing
+    // ========================================================================
+    "humao.rest-client",                    // REST API client in VS Code
+
+    // ========================================================================
+    // Additional Utilities
+    // ========================================================================
+    "mechatroner.rainbow-csv",              // CSV highlighting
+    "tabnine.tabnine-vscode",               // AI code completion (optional)
+    "github.copilot",                       // GitHub Copilot (optional, requires subscription)
+    "visualstudioexptteam.vscodeintellicode" // AI-assisted IntelliSense
+  ],
+
+  // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
+  "unwantedRecommendations": [
+    "ms-python.pylint",                     // Using Ruff instead
+    "ms-python.flake8",                     // Using Ruff instead
+    "ms-python.black-formatter",            // Using Ruff instead
+    "ms-python.isort",                      // Using Ruff instead
+    "ms-python.mypy-type-checker"           // Configured via settings.json instead
+  ]
+}

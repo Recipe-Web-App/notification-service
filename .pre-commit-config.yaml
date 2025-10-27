@@ -22,6 +22,7 @@ repos:
       - id: check-yaml
         args: [--unsafe]  # Allow custom YAML tags
       - id: check-json
+        exclude: ^\.vscode/  # VS Code uses JSONC (JSON with Comments)
       - id: check-toml
 
       # Git checks

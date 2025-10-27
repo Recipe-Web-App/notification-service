@@ -1,0 +1,541 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    // ========================================================================
+    // Django Development Tasks
+    // ========================================================================
+    {
+      "label": "Django: Run Local Server",
+      "type": "shell",
+      "command": "poetry run python run_local.py",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "django"
+      },
+      "icon": {
+        "id": "play-circle",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "Django: Run Server",
+      "type": "shell",
+      "command": "poetry run python manage.py runserver",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "django"
+      },
+      "icon": {
+        "id": "server-process",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "Django: Shell",
+      "type": "shell",
+      "command": "poetry run python manage.py shell",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "django"
+      },
+      "icon": {
+        "id": "terminal",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Django: Make Migrations",
+      "type": "shell",
+      "command": "poetry run python manage.py makemigrations",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "django"
+      },
+      "icon": {
+        "id": "database",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Django: Migrate",
+      "type": "shell",
+      "command": "poetry run python manage.py migrate",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "django"
+      },
+      "icon": {
+        "id": "database",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "Django: Show Migrations",
+      "type": "shell",
+      "command": "poetry run python manage.py showmigrations",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "django"
+      }
+    },
+
+    // ========================================================================
+    // Testing Tasks
+    // ========================================================================
+    {
+      "label": "Test: Run All Tests",
+      "type": "shell",
+      "command": "poetry run pytest tests -v --tb=short",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "test"
+      },
+      "icon": {
+        "id": "beaker",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "Test: Unit Tests",
+      "type": "shell",
+      "command": "poetry run pytest tests/unit -v --tb=short",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "test"
+      },
+      "icon": {
+        "id": "beaker",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Test: Component Tests",
+      "type": "shell",
+      "command": "poetry run pytest tests/component -v --tb=short",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "test"
+      },
+      "icon": {
+        "id": "beaker",
+        "color": "terminal.ansiBlue"
+      }
+    },
+    {
+      "label": "Test: Dependency Tests",
+      "type": "shell",
+      "command": "poetry run pytest tests/dependency -v --tb=short",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "test"
+      },
+      "icon": {
+        "id": "beaker",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "Test: Performance Tests",
+      "type": "shell",
+      "command": "poetry run locust -f tests/performance/locustfile_notifications.py --headless",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "test"
+      },
+      "icon": {
+        "id": "pulse",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Test: With Coverage",
+      "type": "shell",
+      "command": "poetry run pytest tests --cov=. --cov-report=html --cov-report=term -v",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "test"
+      },
+      "icon": {
+        "id": "graph",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "Test: Open Coverage Report",
+      "type": "shell",
+      "command": "xdg-open htmlcov/index.html || open htmlcov/index.html",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      }
+    },
+
+    // ========================================================================
+    // Code Quality Tasks
+    // ========================================================================
+    {
+      "label": "Lint: Ruff Check",
+      "type": "shell",
+      "command": "poetry run ruff check . --config pyproject.toml",
+      "problemMatcher": {
+        "owner": "python",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(\\w+):\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "lint"
+      },
+      "icon": {
+        "id": "search",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "Lint: Ruff Fix",
+      "type": "shell",
+      "command": "poetry run ruff check . --fix --config pyproject.toml",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "lint"
+      },
+      "icon": {
+        "id": "wrench",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "Format: Ruff Format",
+      "type": "shell",
+      "command": "poetry run ruff format . --config pyproject.toml",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "format"
+      },
+      "icon": {
+        "id": "paintcan",
+        "color": "terminal.ansiBlue"
+      }
+    },
+    {
+      "label": "Format: isort",
+      "type": "shell",
+      "command": "poetry run isort . --settings-path pyproject.toml",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "format"
+      }
+    },
+    {
+      "label": "Type Check: mypy",
+      "type": "shell",
+      "command": "poetry run mypy . --config-file pyproject.toml",
+      "problemMatcher": {
+        "owner": "python",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):\\s*(error|warning|note):\\s*(.+)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "message": 4
+        }
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true,
+        "group": "typecheck"
+      },
+      "icon": {
+        "id": "type-hierarchy",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "Security: Bandit",
+      "type": "shell",
+      "command": "poetry run bandit -c pyproject.toml -r .",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "icon": {
+        "id": "shield",
+        "color": "terminal.ansiRed"
+      }
+    },
+    {
+      "label": "Pre-commit: Run All Hooks",
+      "type": "shell",
+      "command": "poetry run pre-commit run --all-files",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "icon": {
+        "id": "check-all",
+        "color": "terminal.ansiGreen"
+      }
+    },
+
+    // ========================================================================
+    // Docker Tasks
+    // ========================================================================
+    {
+      "label": "Docker: Compose Up",
+      "type": "shell",
+      "command": "docker-compose up -d",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "docker"
+      },
+      "icon": {
+        "id": "vm-active",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "Docker: Compose Down",
+      "type": "shell",
+      "command": "docker-compose down",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "docker"
+      },
+      "icon": {
+        "id": "vm-outline",
+        "color": "terminal.ansiRed"
+      }
+    },
+    {
+      "label": "Docker: Compose Restart",
+      "type": "shell",
+      "command": "docker-compose restart",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "docker"
+      }
+    },
+    {
+      "label": "Docker: View Logs",
+      "type": "shell",
+      "command": "docker-compose logs -f",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "docker"
+      }
+    },
+    {
+      "label": "Docker: Rebuild",
+      "type": "shell",
+      "command": "docker-compose build --no-cache",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "docker"
+      }
+    },
+
+    // ========================================================================
+    // Dependency Management
+    // ========================================================================
+    {
+      "label": "Poetry: Install Dependencies",
+      "type": "shell",
+      "command": "poetry install",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "Poetry: Update Dependencies",
+      "type": "shell",
+      "command": "poetry update",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Poetry: Show Outdated",
+      "type": "shell",
+      "command": "poetry show --outdated",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    }
+  ]
+}

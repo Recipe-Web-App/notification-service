@@ -1,0 +1,314 @@
+{
+  // ============================================================================
+  // Python Configuration
+  // ============================================================================
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.terminal.activateEnvInCurrentTerminal": true,
+
+  // ============================================================================
+  // Linting & Formatting - Ruff
+  // ============================================================================
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    },
+    "editor.rulers": [88]
+  },
+
+  // Ruff extension settings
+  "ruff.enable": true,
+  "ruff.organizeImports": true,
+  "ruff.fixAll": true,
+  "ruff.lint.run": "onSave",
+  "ruff.format.args": ["--config", "${workspaceFolder}/pyproject.toml"],
+  "ruff.lint.args": ["--config", "${workspaceFolder}/pyproject.toml"],
+
+  // ============================================================================
+  // Type Checking - mypy
+  // ============================================================================
+  "python.linting.enabled": true,
+  "python.linting.mypyEnabled": true,
+  "python.linting.mypyArgs": [
+    "--config-file=${workspaceFolder}/pyproject.toml",
+    "--ignore-missing-imports",
+    "--show-error-codes",
+    "--show-column-numbers"
+  ],
+
+  // ============================================================================
+  // Testing - pytest
+  // ============================================================================
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": [
+    "tests",
+    "-v",
+    "--tb=short"
+  ],
+  "python.testing.autoTestDiscoverOnSaveEnabled": true,
+
+  // Test coverage
+  "coverage-gutters.showLineCoverage": true,
+  "coverage-gutters.coverageFileNames": [
+    "coverage.xml",
+    ".coverage",
+    "htmlcov/index.html"
+  ],
+
+  // ============================================================================
+  // Django Configuration
+  // ============================================================================
+  "python.languageServer": "Pylance",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}",
+    "${workspaceFolder}/notification_service",
+    "${workspaceFolder}/core"
+  ],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "warning",
+    "reportMissingTypeStubs": "none"
+  },
+  "python.analysis.typeCheckingMode": "basic",
+
+  // Django template support
+  "files.associations": {
+    "**/*.html": "html",
+    "**/templates/**/*.html": "django-html",
+    "**/templates/**": "django-txt",
+    "**/requirements{/**,*}.{txt,in}": "pip-requirements"
+  },
+
+  "emmet.includeLanguages": {
+    "django-html": "html"
+  },
+
+  // Django environment
+  "python.envFile": "${workspaceFolder}/.env",
+
+  // ============================================================================
+  // Editor Settings
+  // ============================================================================
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "editor.trimAutoWhitespace": true,
+  "editor.renderWhitespace": "boundary",
+  "editor.wordWrap": "off",
+  "editor.wordWrapColumn": 88,
+
+  // Save actions
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+
+  // Code navigation
+  "editor.gotoLocation.multipleDefinitions": "goto",
+  "editor.gotoLocation.multipleReferences": "goto",
+  "breadcrumbs.enabled": true,
+
+  // Suggestions
+  "editor.suggest.preview": true,
+  "editor.suggestSelection": "first",
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": true
+  },
+
+  // IntelliSense
+  "editor.acceptSuggestionOnCommitCharacter": true,
+  "editor.acceptSuggestionOnEnter": "on",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.completeFunctionParens": true,
+
+  // ============================================================================
+  // File Explorer
+  // ============================================================================
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/*.pyo": true,
+    "**/*.pyd": true,
+    "**/.Python": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/.coverage": false,
+    "**/htmlcov": false,
+    "**/*.egg-info": true,
+    "**/.venv": true,
+    "**/venv": true,
+    "**/.tox": true,
+    "**/build": true,
+    "**/dist": true
+  },
+
+  "search.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/htmlcov": true,
+    "**/*.egg-info": true,
+    "**/.venv": true,
+    "**/venv": true,
+    "**/poetry.lock": true,
+    "**/db.sqlite3": true
+  },
+
+  "files.watcherExclude": {
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.venv/**": true,
+    "**/venv/**": true
+  },
+
+  // ============================================================================
+  // Git Configuration
+  // ============================================================================
+  "git.enableSmartCommit": true,
+  "git.confirmSync": false,
+  "git.autofetch": true,
+  "git.defaultCloneDirectory": "${workspaceFolder}/..",
+
+  // ============================================================================
+  // Docker Configuration
+  // ============================================================================
+  "docker.commands.build": "${containerCommand} build --pull --rm -f \"${dockerfile}\" -t ${tag} \"${context}\"",
+  "docker.commands.composeUp": "${compositeCommand} up -d",
+  "docker.commands.composeDown": "${compositeCommand} down",
+
+  // ============================================================================
+  // Terminal Configuration
+  // ============================================================================
+  "terminal.integrated.env.linux": {
+    "PYTHONPATH": "${workspaceFolder}:${env:PYTHONPATH}"
+  },
+  "terminal.integrated.env.osx": {
+    "PYTHONPATH": "${workspaceFolder}:${env:PYTHONPATH}"
+  },
+  "terminal.integrated.scrollback": 10000,
+
+  // ============================================================================
+  // Language-Specific Settings
+  // ============================================================================
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "editor.formatOnSave": true
+  },
+
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "editor.formatOnSave": true
+  },
+
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  },
+
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml",
+    "editor.formatOnSave": true
+  },
+
+  "[dockerfile]": {
+    "editor.defaultFormatter": "ms-azuretools.vscode-docker",
+    "editor.formatOnSave": true
+  },
+
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.quickSuggestions": {
+      "comments": "off",
+      "strings": "off",
+      "other": "off"
+    }
+  },
+
+  // ============================================================================
+  // Extension-Specific Settings
+  // ============================================================================
+  // Error Lens
+  "errorLens.enabledDiagnosticLevels": [
+    "error",
+    "warning",
+    "info"
+  ],
+  "errorLens.excludeBySource": [
+    "cSpell"
+  ],
+
+  // GitLens
+  "gitlens.codeLens.enabled": false,
+  "gitlens.currentLine.enabled": true,
+  "gitlens.hovers.currentLine.over": "line",
+
+  // Path Intellisense
+  "path-intellisense.autoSlashAfterDirectory": true,
+  "path-intellisense.extensionOnImport": true,
+
+  // autoDocstring
+  "autoDocstring.docstringFormat": "google",
+  "autoDocstring.startOnNewLine": false,
+  "autoDocstring.includeExtendedSummary": false,
+  "autoDocstring.includeName": false,
+  "autoDocstring.guessTypes": true,
+
+  // Better Comments
+  "better-comments.tags": [
+    {
+      "tag": "!",
+      "color": "#FF2D00",
+      "strikethrough": false,
+      "underline": false,
+      "backgroundColor": "transparent",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "tag": "?",
+      "color": "#3498DB",
+      "strikethrough": false,
+      "underline": false,
+      "backgroundColor": "transparent",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "tag": "//",
+      "color": "#474747",
+      "strikethrough": true,
+      "underline": false,
+      "backgroundColor": "transparent",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "tag": "todo",
+      "color": "#FF8C00",
+      "strikethrough": false,
+      "underline": false,
+      "backgroundColor": "transparent",
+      "bold": false,
+      "italic": false
+    },
+    {
+      "tag": "*",
+      "color": "#98C379",
+      "strikethrough": false,
+      "underline": false,
+      "backgroundColor": "transparent",
+      "bold": false,
+      "italic": false
+    }
+  ]
+}
