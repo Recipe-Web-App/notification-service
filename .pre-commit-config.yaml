@@ -78,6 +78,7 @@ repos:
           - types-requests
           - python-dotenv>=1.1.1
           - pydantic>=2.12.3
+          - email-validator>=2.3.0
           - psycopg[binary]>=3.2.11
         exclude: ^(migrations/|tests/)
 
