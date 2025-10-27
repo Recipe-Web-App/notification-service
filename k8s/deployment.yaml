@@ -87,10 +87,15 @@ spec:
               mountPath: /tmp
             - name: data-volume
               mountPath: /data
+            - name: logs-volume
+              mountPath: /app/logs
       volumes:
         - name: tmp-volume
           emptyDir:
             sizeLimit: 128Mi
         - name: data-volume
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: logs-volume
           emptyDir:
             sizeLimit: 256Mi

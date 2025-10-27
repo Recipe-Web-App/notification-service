@@ -17,9 +17,9 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env file (local development)
-# In production/K8s, .env won't exist and K8s env vars will be used
-env_path = BASE_DIR / ".env"
+# Load environment variables from .env.local (local development)
+# In production/K8s, .env.local won't exist and K8s env vars will be used
+env_path = BASE_DIR / ".env.local"
 load_dotenv(dotenv_path=env_path, override=False)
 
 # Logging Configuration
