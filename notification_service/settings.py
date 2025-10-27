@@ -112,6 +112,12 @@ DATABASES = {
 }
 
 
+# Password validation
+# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+# Empty list - this service does not handle authentication
+AUTH_PASSWORD_VALIDATORS: list = []
+
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
