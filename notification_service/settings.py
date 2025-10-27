@@ -40,6 +40,7 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "notification-service.local", "*"]
 INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
+    "corsheaders",
     "core",
 ]
 
@@ -63,7 +64,12 @@ MIGRATION_MODULES = DisableMigrations()
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "core.middleware.request_id.RequestIDMiddleware",  # First for tracing
+    "core.middleware.process_time.ProcessTimeMiddleware",  # Track duration
+    "corsheaders.middleware.CorsMiddleware",  # CORS early
     "django.middleware.common.CommonMiddleware",
+    "core.middleware.rate_limit.RateLimitMiddleware",  # Rate limit after ID
+    "core.middleware.security_headers.SecurityHeadersMiddleware",  # Security
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -142,8 +148,114 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Django REST Framework settings
 # Authentication disabled for now - will be configured when auth-service is integrated
-REST_FRAMEWORK: dict[str, list | None] = {
+REST_FRAMEWORK: dict[str, list | None | str] = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": [],
     "UNAUTHENTICATED_USER": None,
+    "EXCEPTION_HANDLER": "core.exceptions.handlers.custom_exception_handler",
+}
+
+# Redis Configuration
+# Used for caching and rate limiting
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
+REDIS_DB = int(os.environ.get("REDIS_DB", "0"))
+REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
+
+# Build Redis URL with optional password
+if REDIS_PASSWORD:
+    REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+else:
+    REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "SOCKET_CONNECT_TIMEOUT": 5,
+            "SOCKET_TIMEOUT": 5,
+            "RETRY_ON_TIMEOUT": True,
+            "MAX_CONNECTIONS": 50,
+        },
+    }
+}
+
+# Rate Limiting Configuration
+RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS", "100"))
+RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:5173",
+).split(",")
+
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-request-id",
+]
+
+# Logging Configuration
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {
+            "()": "core.logging.filters.RequestIDFilter",
+        },
+    },
+    "formatters": {
+        "verbose": {
+            "format": "[{levelname}] [{request_id}] {name}: {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "[{levelname}] {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+            "filters": ["request_id"],
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.environ.get("LOG_LEVEL", "INFO"),
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+        "core": {
+            "handlers": ["console"],
+            "level": os.environ.get("LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+    },
 }

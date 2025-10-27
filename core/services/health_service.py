@@ -3,6 +3,7 @@
 import logging
 import time
 
+from django.core.cache import cache
 from django.db import connection
 from django.db.utils import OperationalError
 
@@ -29,6 +30,8 @@ class HealthService:
         self.cache_ttl_seconds = cache_ttl_seconds
         self._db_health_cache: DependencyHealth | None = None
         self._db_health_cache_time: float = 0.0
+        self._redis_health_cache: DependencyHealth | None = None
+        self._redis_health_cache_time: float = 0.0
         self._database_monitor: DatabaseMonitor | None = None
 
     def set_database_monitor(self, monitor: DatabaseMonitor) -> None:
@@ -48,21 +51,25 @@ class HealthService:
         return LivenessResponse(status="alive")
 
     def get_readiness_status(self) -> ReadinessResponse:
-        """Get readiness status with database health check.
+        """Get readiness status with database and Redis health checks.
 
-        Returns degraded (ready=True, degraded=True) when database is down,
+        Returns degraded (ready=True, degraded=True) when dependencies are down,
         allowing the service to remain deployable while reconnection continues.
 
         Returns:
             ReadinessResponse with overall status and dependency health
         """
-        # Check database health
+        # Check all dependency health
         db_health = self.check_database_health()
+        redis_health = self.check_redis_health()
 
         # Determine overall service status
-        dependencies = {"database": db_health}
+        dependencies = {"database": db_health, "redis": redis_health}
 
-        if db_health.healthy:
+        # Service is degraded if any dependency is unhealthy
+        all_healthy = db_health.healthy and redis_health.healthy
+
+        if all_healthy:
             service_ready = True
             service_degraded = False
             service_status = "ready"
@@ -159,6 +166,64 @@ class HealthService:
         # Update cache
         self._db_health_cache = new_health
         self._db_health_cache_time = current_time
+
+        return new_health
+
+    def check_redis_health(self) -> DependencyHealth:
+        """Check Redis connectivity with caching.
+
+        Tests Redis connection by attempting a simple operation.
+        Results are cached for cache_ttl_seconds.
+
+        Returns:
+            DependencyHealth with Redis status
+        """
+        # Check if cached result is still valid
+        current_time = time.time()
+        if (
+            self._redis_health_cache is not None
+            and (current_time - self._redis_health_cache_time) < self.cache_ttl_seconds
+        ):
+            return self._redis_health_cache
+
+        # Perform fresh health check
+        start_time = time.perf_counter()
+        try:
+            # Test Redis connection with a simple operation
+            test_key = "__health_check__"
+            cache.set(test_key, "ok", timeout=1)
+            result = cache.get(test_key)
+
+            if result == "ok":
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                new_health = DependencyHealth(
+                    healthy=True,
+                    status=HealthStatus.HEALTHY,
+                    message="Redis connection successful",
+                    response_time_ms=response_time_ms,
+                )
+            else:
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                new_health = DependencyHealth(
+                    healthy=False,
+                    status=HealthStatus.UNHEALTHY,
+                    message="Redis health check failed: unexpected result",
+                    response_time_ms=response_time_ms,
+                )
+
+        except Exception as e:
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+            new_health = DependencyHealth(
+                healthy=False,
+                status=HealthStatus.ERROR,
+                message=f"Redis connection failed: {e!s}",
+                response_time_ms=response_time_ms,
+            )
+            logger.warning(f"Redis health check failed: {e}")
+
+        # Update cache
+        self._redis_health_cache = new_health
+        self._redis_health_cache_time = current_time
 
         return new_health
 
