@@ -9,10 +9,18 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file (local development)
+# In production/K8s, .env won't exist and K8s env vars will be used
+env_path = BASE_DIR / ".env"
+load_dotenv(dotenv_path=env_path, override=False)
 
 
 # Quick-start development settings - unsuitable for production
@@ -34,6 +42,24 @@ INSTALLED_APPS = [
     "rest_framework",
     "core",
 ]
+
+
+# This service does not own the database schema - disable all migrations
+class DisableMigrations:
+    """Disable migrations for all apps.
+
+    This allows the service to start without a database connection,
+    which is required for the degraded mode health check pattern.
+    """
+
+    def __contains__(self, item):
+        return True
+
+    def __getitem__(self, item):
+        return None
+
+
+MIGRATION_MODULES = DisableMigrations()
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -66,10 +92,30 @@ WSGI_APPLICATION = "notification_service.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("POSTGRES_DB", "recipe_database"),
+        "USER": os.environ.get(
+            "NOTIFICATION_SERVICE_DB_USER", "notification_service_user"
+        ),
+        "PASSWORD": os.environ.get("NOTIFICATION_SERVICE_DB_PASSWORD", ""),
+        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "OPTIONS": {
+            "options": (
+                f"-c search_path={os.environ.get('POSTGRES_SCHEMA', 'recipe_manager')}"
+            ),
+            "connect_timeout": 5,
+        },
+        "CONN_MAX_AGE": 60,  # Keep connections alive for 60 seconds
+        "CONN_HEALTH_CHECKS": True,  # Enable connection health checks
     }
 }
+
+
+# Password validation
+# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+# Empty list - this service does not handle authentication
+AUTH_PASSWORD_VALIDATORS: list = []
 
 
 # Internationalization

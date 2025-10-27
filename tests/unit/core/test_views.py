@@ -40,14 +40,20 @@ class TestReadinessCheckView(unittest.TestCase):
     """Tests for ReadinessCheckView."""
 
     def test_get_returns_ready_status_and_200(self):
-        """Test that GET returns {"status": "ready"} with 200 status code."""
+        """Test that GET returns readiness response with 200 status code."""
         view = ReadinessCheckView()
         mock_request = Mock()
 
         response = view.get(mock_request)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"status": "ready"})
+        # Verify response structure
+        self.assertIn("status", response.data)
+        self.assertIn("ready", response.data)
+        self.assertIn("degraded", response.data)
+        self.assertIn("dependencies", response.data)
+        # Status should be either "ready" or "degraded"
+        self.assertIn(response.data["status"], ["ready", "degraded"])
 
 
 if __name__ == "__main__":

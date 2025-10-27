@@ -4,6 +4,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.services import health_service
+
 
 class HealthCheckView(APIView):
     """Simple health check endpoint."""
@@ -36,13 +38,16 @@ class LivenessCheckView(APIView):
         Returns:
             Response object with status OK if service is alive.
         """
-        return Response({"status": "alive"}, status=status.HTTP_200_OK)
+        liveness = health_service.get_liveness_status()
+        return Response(liveness.model_dump(), status=status.HTTP_200_OK)
 
 
 class ReadinessCheckView(APIView):
     """Readiness probe endpoint for Kubernetes.
 
     Returns 200 if the service is ready to serve traffic.
+    Returns degraded status (200 OK) when database is unavailable,
+    allowing service to stay alive while background reconnection continues.
     """
 
     def get(self, _request):
@@ -52,10 +57,7 @@ class ReadinessCheckView(APIView):
             _request: HTTP request object (unused).
 
         Returns:
-            Response object with status OK if service is ready.
+            Response object with status OK if service is ready or degraded.
         """
-        # TODO: Add database connectivity check when database is configured
-        return Response(
-            {"status": "ready"},
-            status=status.HTTP_200_OK,
-        )
+        readiness = health_service.get_readiness_status()
+        return Response(readiness.model_dump(), status=status.HTTP_200_OK)
