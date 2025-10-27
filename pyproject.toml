@@ -71,7 +71,7 @@ faker = "^37.12.0"
 
 # HTTP mocking
 requests = "^2.31.0"
-responses = "^0.24.0"
+responses = "^0.25.8"
 requests-mock = "^1.11.0"
 
 # Time control
