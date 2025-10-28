@@ -19,7 +19,9 @@ dependencies = [
     "redis (>=5.0.0,<6.0.0)",
     "django-redis (>=5.4.0,<6.0.0)",
     "django-cors-headers (>=4.3.0,<5.0.0)",
-    "structlog (>=24.4.0,<25.0.0)"
+    "structlog (>=24.4.0,<25.0.0)",
+    "pyjwt (>=2.8.0,<3.0.0)",
+    "requests (>=2.31.0,<3.0.0)"
 ]
 
 
