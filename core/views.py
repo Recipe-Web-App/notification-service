@@ -1,6 +1,7 @@
 """API views for core application."""
 
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,7 +9,23 @@ from core.services import health_service
 
 
 class HealthCheckView(APIView):
-    """Simple health check endpoint."""
+    """Simple health check endpoint.
+
+    This endpoint is exempt from authentication to allow Kubernetes probes
+    and monitoring systems to check service health.
+    """
+
+    def __init__(self, **kwargs):
+        """Initialize view with authentication exemptions.
+
+        Exempt from authentication - health checks must be accessible without auth.
+
+        Args:
+            **kwargs: Keyword arguments passed to parent class
+        """
+        super().__init__(**kwargs)
+        self.authentication_classes = []
+        self.permission_classes = [AllowAny]
 
     def get(self, _request):
         """Handle GET request for health check.
@@ -27,7 +44,21 @@ class LivenessCheckView(APIView):
 
     Returns 200 if the service is alive and running.
     This should not check external dependencies.
+
+    This endpoint is exempt from authentication to allow Kubernetes probes.
     """
+
+    def __init__(self, **kwargs):
+        """Initialize view with authentication exemptions.
+
+        Exempt from authentication - health checks must be accessible without auth.
+
+        Args:
+            **kwargs: Keyword arguments passed to parent class
+        """
+        super().__init__(**kwargs)
+        self.authentication_classes = []
+        self.permission_classes = [AllowAny]
 
     def get(self, _request):
         """Handle GET request for liveness check.
@@ -48,7 +79,21 @@ class ReadinessCheckView(APIView):
     Returns 200 if the service is ready to serve traffic.
     Returns degraded status (200 OK) when database is unavailable,
     allowing service to stay alive while background reconnection continues.
+
+    This endpoint is exempt from authentication to allow Kubernetes probes.
     """
+
+    def __init__(self, **kwargs):
+        """Initialize view with authentication exemptions.
+
+        Exempt from authentication - health checks must be accessible without auth.
+
+        Args:
+            **kwargs: Keyword arguments passed to parent class
+        """
+        super().__init__(**kwargs)
+        self.authentication_classes = []
+        self.permission_classes = [AllowAny]
 
     def get(self, _request):
         """Handle GET request for readiness check.
