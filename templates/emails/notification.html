@@ -1,0 +1,23 @@
+{% extends "emails/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block header %}{{ header|default:"Recipe Web App Notification" }}{% endblock %}
+
+{% block content %}
+<h2>{{ heading|default:"Hello!" }}</h2>
+
+{{ message|safe }}
+
+{% if action_url and action_text %}
+<p style="text-align: center;">
+    <a href="{{ action_url }}" class="button">{{ action_text }}</a>
+</p>
+{% endif %}
+
+{% if signature %}
+<p>{{ signature }}</p>
+{% else %}
+<p><strong>The Recipe Web App Team</strong></p>
+{% endif %}
+{% endblock %}

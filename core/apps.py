@@ -16,11 +16,10 @@ class CoreConfig(AppConfig):
     name = "core"
 
     def ready(self) -> None:
-        """Initialize services when Django app is ready.
+        """Initialize services when Django app is ready."""
+        import core.signals  # noqa: PLC0415
 
-        Sets up the database monitoring service and connects it to the
-        health service for conditional background polling.
-        """
-        # Connect health service with database monitor
+        del core.signals
+
         health_service.set_database_monitor(database_monitor)
         logger.info("Database monitoring service initialized")

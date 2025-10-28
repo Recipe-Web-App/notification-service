@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from core.schemas.health.dependency_health import DependencyHealth  # noqa: TC001
+from core.schemas.health.dependency_health import DependencyHealth
 
 
 class ReadinessResponse(BaseModel):

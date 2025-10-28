@@ -13,7 +13,7 @@ from core.schemas.health import (
     LivenessResponse,
     ReadinessResponse,
 )
-from core.services.database_monitor import DatabaseMonitor  # noqa: TC001
+from core.services.database_monitor import DatabaseMonitor
 
 logger = logging.getLogger(__name__)
 

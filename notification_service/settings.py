@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "corsheaders",
+    "django_rq",
     "core",
 ]
 
@@ -93,7 +94,7 @@ ROOT_URLCONF = "notification_service.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -273,3 +274,41 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
     "x-request-id",
 ]
+
+# Email Configuration (SMTP)
+# Only credentials are configurable via environment variables
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "noreply@recipeapp.com"
+)
+
+# Django-RQ Configuration
+# Queue configuration for background job processing
+RQ_QUEUES = {
+    "default": {
+        "HOST": REDIS_HOST,
+        "PORT": REDIS_PORT,
+        "DB": REDIS_DB,
+        "PASSWORD": REDIS_PASSWORD,
+        "DEFAULT_TIMEOUT": 300,
+    },
+    "high": {
+        "HOST": REDIS_HOST,
+        "PORT": REDIS_PORT,
+        "DB": REDIS_DB,
+        "PASSWORD": REDIS_PASSWORD,
+        "DEFAULT_TIMEOUT": 180,
+    },
+    "low": {
+        "HOST": REDIS_HOST,
+        "PORT": REDIS_PORT,
+        "DB": REDIS_DB,
+        "PASSWORD": REDIS_PASSWORD,
+        "DEFAULT_TIMEOUT": 600,
+    },
+}
