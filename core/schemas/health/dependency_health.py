@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field
 
-from core.enums.health_status import HealthStatus  # noqa: TC001
+from core.enums.health_status import HealthStatus
 
 
 class DependencyHealth(BaseModel):

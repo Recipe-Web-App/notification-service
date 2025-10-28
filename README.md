@@ -39,6 +39,66 @@ For production-like environment:
 poetry run gunicorn notification_service.wsgi:application --bind 0.0.0.0:8000 --workers 4
 ```
 
+## Features
+
+### Email Notification System
+
+The notification service provides a reliable email notification system with the following features:
+
+- **Queue-based delivery**: Uses Django-RQ with Redis for reliable async email sending
+- **SMTP support**: Full HTML email support with CSS styling via Gmail SMTP
+- **Automatic retries**: Exponential backoff retry logic (up to 3 attempts)
+- **Full audit trail**: All notifications persisted with status tracking
+- **Django signals**: Automatic notifications triggered by database events
+- **Email templates**: Django template system for HTML emails
+
+#### Architecture
+
+1. **Notification Model**: Tracks all notifications with status (pending, queued, sent, failed)
+2. **Email Service**: Handles SMTP email sending with retry logic
+3. **Notification Service**: High-level API for creating and managing notifications
+4. **Background Jobs**: Async email sending via RQ workers
+5. **Django Signals**: Auto-trigger notifications (e.g., welcome email on user creation)
+
+#### Email Configuration
+
+Only 2 environment variables required:
+- `EMAIL_HOST_USER`: Your Gmail address
+- `EMAIL_HOST_PASSWORD`: Gmail app-specific password
+
+All other settings (SMTP host, port, TLS) are hardcoded in configuration.
+
+#### Starting the RQ Worker
+
+For email notifications to be sent, you must run the RQ worker:
+
+```bash
+# Development
+poetry run python -m django_rq.management.commands.rqworker default
+
+# Docker Compose (automatic)
+docker-compose up rq-worker
+```
+
+The worker processes queued email jobs from Redis.
+
+#### Notification Workflow
+
+1. Create notification via `NotificationService.create_notification()`
+2. Notification is saved to database with `status=PENDING`
+3. Notification is queued to Django-RQ (status changes to `QUEUED`)
+4. RQ worker picks up job and sends email via SMTP
+5. On success: `status=SENT`, `sent_at` timestamp set
+6. On failure: Retry with exponential backoff (5min, 10min, 20min)
+7. After 3 failed attempts: `status=FAILED`, `error_message` set
+
+#### Email Templates
+
+Templates located in `templates/emails/`:
+- `base.html`: Base template with styling
+- `welcome.html`: Welcome email for new users
+- `notification.html`: Generic notification template
+
 ## API Endpoints
 
 All API endpoints are prefixed with `/api/v1/notification/`

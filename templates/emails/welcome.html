@@ -1,0 +1,30 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Welcome to Recipe Web App{% endblock %}
+
+{% block header %}Welcome to Recipe Web App!{% endblock %}
+
+{% block content %}
+<h2>Hello {{ username }}!</h2>
+
+<p>Thank you for joining Recipe Web App. We're thrilled to have you as part of our growing community of food enthusiasts!</p>
+
+<p>Here's what you can do to get started:</p>
+
+<ul>
+    <li><strong>Explore Recipes:</strong> Browse thousands of recipes from our community</li>
+    <li><strong>Share Your Recipes:</strong> Upload your favorite recipes and share them with others</li>
+    <li><strong>Follow Cooks:</strong> Connect with other food lovers and follow their culinary journey</li>
+    <li><strong>Save Favorites:</strong> Bookmark recipes you love for easy access later</li>
+</ul>
+
+<p style="text-align: center;">
+    <a href="{{ app_url }}" class="button">Get Started</a>
+</p>
+
+<p>If you have any questions or need help, feel free to reach out to our support team.</p>
+
+<p>Happy cooking!</p>
+
+<p><strong>The Recipe Web App Team</strong></p>
+{% endblock %}
