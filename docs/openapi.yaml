@@ -1,0 +1,1274 @@
+openapi: 3.0.3
+info:
+  title: Notification Service API
+  description: |
+    Notification service for the Recipe Web App. Handles email notifications with async queue processing.
+
+    ## Features
+    - Template-based email notifications (recipe events, social events, system notifications)
+    - Async notification queue with Redis/RQ
+    - OAuth2 authentication with scope-based authorization
+    - Batch notification support (up to 100 recipients per request)
+    - Follower-based authorization for user-to-user notifications
+    - Status polling for notification delivery tracking
+    - Rate limiting (100 requests/minute per user)
+
+    ## Authorization Model
+    - **notification:user** - Send notifications to followers only, read own notifications
+    - **notification:admin** - Send to anyone, access all admin endpoints
+    - Service accounts (recipe-management-service, user-management-service) get **notification:admin** scope
+
+    ## Data Fetching & URL Construction
+    The notification service uses a lean API design - endpoints accept only entity IDs, not full entity data.
+
+    **Downstream Service Integration:**
+    - **recipe-management-service** - Fetches recipe details, comment details, like counts
+    - **user-management-service** - Fetches user details (names, emails, usernames), validates follower relationships
+
+    **URL Construction:**
+    - Service constructs frontend URLs using the `FRONTEND_BASE_URL` environment variable
+    - Example: `FRONTEND_BASE_URL=https://app.example.com`
+    - Generated URLs: `{FRONTEND_BASE_URL}/recipes/{recipe_id}`, `{FRONTEND_BASE_URL}/users/{username}`, etc.
+
+    **Benefits:**
+    - Ensures notification data is always fresh (no stale names/emails)
+    - Reduces request payload size
+    - Centralizes data ownership in appropriate services
+    - Simplifies API contract
+
+  version: 1.0.0
+  contact:
+    name: Recipe Web App Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://notification-service.notification.svc.cluster.local:8000/api/v1/notification
+    description: Kubernetes internal (production)
+  - url: http://localhost:8000/api/v1/notification
+    description: Local development
+
+security:
+  - OAuth2: []
+
+tags:
+  - name: Recipe Notifications
+    description: Notifications for recipe-related events
+  - name: Social Notifications
+    description: Notifications for social interactions
+  - name: System Notifications
+    description: System and security notifications
+  - name: Notification Management
+    description: Query and manage notifications
+  - name: User Notifications
+    description: User-specific notification queries
+  - name: Admin
+    description: Administrative endpoints
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  # Recipe Notification Endpoints
+  /notifications/recipe-published:
+    post:
+      tags:
+        - Recipe Notifications
+      summary: Notify followers when a recipe is published
+      description: |
+        Sends email notifications to all followers of the recipe author.
+        Requires **notification:admin** scope OR **notification:user** scope with valid follower relationships.
+
+        The service fetches recipe details (name, author) from recipe-management-service and constructs URLs using FRONTEND_BASE_URL.
+
+        Returns 202 Accepted immediately - notifications are queued for async processing.
+        Use GET /notifications/{id} to poll for delivery status.
+      operationId: notifyRecipePublished
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipePublishedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+                - 550e8400-e29b-41d4-a716-446655440002
+              recipe_id: 660e8400-e29b-41d4-a716-446655440099
+      responses:
+        '202':
+          description: Notifications queued successfully
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: Request limit per minute
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: Remaining requests in current window
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+              description: Unix timestamp when rate limit resets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+              example:
+                notifications:
+                  - notification_id: 770e8400-e29b-41d4-a716-446655440111
+                    recipient_id: 550e8400-e29b-41d4-a716-446655440001
+                  - notification_id: 770e8400-e29b-41d4-a716-446655440112
+                    recipient_id: 550e8400-e29b-41d4-a716-446655440002
+                queued_count: 2
+                message: "Notifications queued successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/recipe-liked:
+    post:
+      tags:
+        - Recipe Notifications
+      summary: Notify recipe author when someone likes their recipe
+      description: |
+        Sends email notification to the recipe author.
+        Requires **notification:admin** scope OR **notification:user** scope with valid follower relationship.
+
+        The service fetches recipe details from recipe-management-service and liker details from user-management-service.
+      operationId: notifyRecipeLiked
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeLikedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              recipe_id: 660e8400-e29b-41d4-a716-446655440099
+              liker_id: 550e8400-e29b-41d4-a716-446655440002
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/recipe-commented:
+    post:
+      tags:
+        - Recipe Notifications
+      summary: Notify recipe author when someone comments on their recipe
+      description: |
+        Sends email notification to the recipe author with comment preview.
+        Requires **notification:admin** scope OR **notification:user** scope with valid follower relationship.
+
+        The service fetches complete comment details (including recipe_id, commenter info, comment text) from recipe-management-service.
+      operationId: notifyRecipeCommented
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeCommentedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              comment_id: 880e8400-e29b-41d4-a716-446655440123
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Social Notification Endpoints
+  /notifications/new-follower:
+    post:
+      tags:
+        - Social Notifications
+      summary: Notify user when someone follows them
+      description: |
+        Sends email notification to user about new follower.
+        Requires **notification:admin** scope (typically called by user-management-service).
+
+        The service fetches follower details from user-management-service and constructs profile URLs using FRONTEND_BASE_URL.
+      operationId: notifyNewFollower
+      security:
+        - OAuth2: ["notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewFollowerRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              follower_id: 550e8400-e29b-41d4-a716-446655440002
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/mention:
+    post:
+      tags:
+        - Social Notifications
+      summary: Notify user when mentioned in a comment
+      description: |
+        Sends email notification to user about being mentioned.
+        Requires **notification:admin** scope OR **notification:user** scope with valid follower relationship.
+
+        The service fetches complete comment details (including mentioner/commenter info, comment text, recipe context) from recipe-management-service.
+      operationId: notifyMention
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MentionRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              comment_id: 880e8400-e29b-41d4-a716-446655440123
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # System Notification Endpoints
+  /notifications/password-reset:
+    post:
+      tags:
+        - System Notifications
+      summary: Send password reset email
+      description: |
+        Sends password reset link via email.
+        Requires **notification:admin** scope (typically called by auth-service).
+
+        The service fetches user email from user-management-service and constructs reset URL using FRONTEND_BASE_URL configuration.
+      operationId: notifyPasswordReset
+      security:
+        - OAuth2: ["notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              reset_token: "abc123def456ghi789"
+              expiry_hours: 24
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Notification Management Endpoints
+  /notifications/{notificationId}:
+    get:
+      tags:
+        - Notification Management
+      summary: Get notification details and status
+      description: |
+        Retrieve notification details including delivery status.
+        Users can only access their own notifications unless they have **notification:admin** scope.
+
+        Use this endpoint to poll for notification delivery status after queuing.
+      operationId: getNotification
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Notification UUID
+      responses:
+        '200':
+          description: Notification details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDetail'
+              example:
+                notification_id: 770e8400-e29b-41d4-a716-446655440111
+                recipient_id: 550e8400-e29b-41d4-a716-446655440001
+                recipient_email: john.doe@example.com
+                subject: "New Recipe: Grandma's Chocolate Chip Cookies"
+                notification_type: email
+                status: sent
+                created_at: "2025-10-28T14:30:00Z"
+                queued_at: "2025-10-28T14:30:01Z"
+                sent_at: "2025-10-28T14:30:15Z"
+                retry_count: 0
+                max_retries: 3
+                metadata:
+                  template_type: recipe_published
+                  recipe_id: 660e8400-e29b-41d4-a716-446655440099
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Notification Management
+      summary: Delete a notification
+      description: |
+        Delete a notification record. Only available to admin users.
+        Note: Cannot delete notifications that are currently being processed (status=queued).
+      operationId: deleteNotification
+      security:
+        - OAuth2: ["notification:admin"]
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Notification UUID
+      responses:
+        '204':
+          description: Notification deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Cannot delete notification in queued status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "conflict"
+                message: "Cannot delete notification while it is being processed"
+                detail: "Notification status is 'queued'"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/{notificationId}/retry:
+    post:
+      tags:
+        - Notification Management
+      summary: Retry a failed notification
+      description: |
+        Retry sending a failed notification. Only available for notifications with status=failed.
+        Requires **notification:admin** scope.
+      operationId: retryNotification
+      security:
+        - OAuth2: ["notification:admin"]
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Notification UUID
+      responses:
+        '202':
+          description: Notification queued for retry
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notification_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [queued]
+                  message:
+                    type: string
+              example:
+                notification_id: 770e8400-e29b-41d4-a716-446655440111
+                status: queued
+                message: "Notification queued for retry"
+        '400':
+          description: Notification cannot be retried (not in failed status)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "bad_request"
+                message: "Cannot retry notification that is not in failed status"
+                detail: "Current status is 'sent'"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # User Notification Endpoints
+  /users/me/notifications:
+    get:
+      tags:
+        - User Notifications
+      summary: Get current user's notifications
+      description: |
+        Retrieve paginated list of notifications for the authenticated user.
+        Returns notifications ordered by creation date (newest first).
+      operationId: getMyNotifications
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, queued, sent, failed]
+          description: Filter by notification status
+      responses:
+        '200':
+          description: User notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{userId}/notifications:
+    get:
+      tags:
+        - User Notifications
+      summary: Get notifications for a specific user
+      description: |
+        Retrieve paginated list of notifications for a specific user.
+        Only available to admin users.
+      operationId: getUserNotifications
+      security:
+        - OAuth2: ["notification:admin"]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User UUID
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, queued, sent, failed]
+          description: Filter by notification status
+      responses:
+        '200':
+          description: User notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Admin Endpoints
+  /stats:
+    get:
+      tags:
+        - Admin
+      summary: Get notification statistics
+      description: |
+        Retrieve aggregated statistics about notifications.
+        Only available to admin users.
+      operationId: getNotificationStats
+      security:
+        - OAuth2: ["notification:admin"]
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Start date for statistics range
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: End date for statistics range
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationStats'
+              example:
+                total_notifications: 15234
+                status_breakdown:
+                  pending: 12
+                  queued: 45
+                  sent: 14987
+                  failed: 190
+                type_breakdown:
+                  email: 15234
+                success_rate: 0.9876
+                average_send_time_seconds: 14.5
+                failed_notifications:
+                  total: 190
+                  by_error_type:
+                    smtp_error: 120
+                    invalid_email: 45
+                    timeout: 25
+                date_range:
+                  start: "2025-10-01T00:00:00Z"
+                  end: "2025-10-28T23:59:59Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/retry-failed:
+    post:
+      tags:
+        - Admin
+      summary: Retry all failed notifications
+      description: |
+        Queue all failed notifications for retry.
+        Only available to admin users.
+        Use with caution on large numbers of failed notifications.
+      operationId: retryFailedNotifications
+      security:
+        - OAuth2: ["notification:admin"]
+      parameters:
+        - name: max_failures
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+          description: Maximum number of failed notifications to retry
+      responses:
+        '202':
+          description: Failed notifications queued for retry
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued_count:
+                    type: integer
+                  message:
+                    type: string
+              example:
+                queued_count: 87
+                message: "87 failed notifications queued for retry"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /templates:
+    get:
+      tags:
+        - Admin
+      summary: List available notification templates
+      description: |
+        Retrieve list of available notification templates with their required fields.
+        Available to all authenticated users.
+      operationId: listTemplates
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      responses:
+        '200':
+          description: Template list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TemplateInfo'
+              example:
+                templates:
+                  - template_type: recipe_published
+                    display_name: Recipe Published
+                    description: Notify followers when a new recipe is published
+                    required_fields: [recipient_ids, recipe_id]
+                    endpoint: /notifications/recipe-published
+                  - template_type: recipe_liked
+                    display_name: Recipe Liked
+                    description: Notify recipe author when someone likes their recipe
+                    required_fields: [recipient_ids, recipe_id, liker_id]
+                    endpoint: /notifications/recipe-liked
+                  - template_type: recipe_commented
+                    display_name: Recipe Commented
+                    description: Notify recipe author when someone comments
+                    required_fields: [recipient_ids, comment_id]
+                    endpoint: /notifications/recipe-commented
+                  - template_type: new_follower
+                    display_name: New Follower
+                    description: Notify user about new follower
+                    required_fields: [recipient_ids, follower_id]
+                    endpoint: /notifications/new-follower
+                  - template_type: mention
+                    display_name: Mention
+                    description: Notify user when mentioned in a comment
+                    required_fields: [recipient_ids, comment_id]
+                    endpoint: /notifications/mention
+                  - template_type: password_reset
+                    display_name: Password Reset
+                    description: Send password reset link
+                    required_fields: [recipient_ids, reset_token, expiry_hours]
+                    endpoint: /notifications/password-reset
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Health Check Endpoints
+  /health/ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      description: |
+        Kubernetes readiness probe. Checks database connectivity and critical dependencies.
+        Returns 200 if service is ready to accept traffic.
+      operationId: readinessCheck
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                checks:
+                  database: ok
+                  redis: ok
+                  smtp: ok
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: unhealthy
+                checks:
+                  database: failed
+                  redis: ok
+                  smtp: degraded
+
+  /health/live:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      description: |
+        Kubernetes liveness probe. Basic check that the service is running.
+        Returns 200 if service process is alive.
+      operationId: livenessCheck
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [alive]
+              example:
+                status: alive
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        OAuth2 Bearer token authentication. Obtain token from auth-service.
+        Token must include appropriate scopes:
+        - **notification:user** - Send to followers, read own notifications
+        - **notification:admin** - Full access to all endpoints
+
+  schemas:
+    # Request Schemas
+    RecipePublishedRequest:
+      type: object
+      required:
+        - recipient_ids
+        - recipe_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (max 100)
+        recipe_id:
+          type: string
+          format: uuid
+          description: UUID of the published recipe. Service will fetch recipe details and author info from recipe-management-service.
+
+    RecipeLikedRequest:
+      type: object
+      required:
+        - recipient_ids
+        - recipe_id
+        - liker_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (typically the recipe author)
+        recipe_id:
+          type: string
+          format: uuid
+          description: UUID of the liked recipe. Service will fetch recipe details from recipe-management-service.
+        liker_id:
+          type: string
+          format: uuid
+          description: UUID of the user who liked the recipe. Service will fetch user details from user-management-service.
+
+    RecipeCommentedRequest:
+      type: object
+      required:
+        - recipient_ids
+        - comment_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (typically the recipe author)
+        comment_id:
+          type: string
+          format: uuid
+          description: UUID of the comment. Service will fetch comment details (including recipe_id and commenter info) from recipe-management-service.
+
+    NewFollowerRequest:
+      type: object
+      required:
+        - recipient_ids
+        - follower_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (user being followed)
+        follower_id:
+          type: string
+          format: uuid
+          description: UUID of the new follower. Service will fetch follower details from user-management-service.
+
+    MentionRequest:
+      type: object
+      required:
+        - recipient_ids
+        - comment_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (users mentioned in comment)
+        comment_id:
+          type: string
+          format: uuid
+          description: UUID of the comment containing the mention. Service will fetch comment details (including commenter/mentioner info, context, recipe_id) from recipe-management-service.
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - recipient_ids
+        - reset_token
+        - expiry_hours
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 1
+          description: Single recipient (user requesting reset). Service will fetch user email from user-management-service.
+        reset_token:
+          type: string
+          minLength: 20
+          description: Secure reset token. Service will construct reset URL using FRONTEND_BASE_URL configuration.
+        expiry_hours:
+          type: integer
+          minimum: 1
+          maximum: 72
+          description: Number of hours until token expires
+
+    # Response Schemas
+    BatchNotificationResponse:
+      type: object
+      required:
+        - notifications
+        - queued_count
+        - message
+      properties:
+        notifications:
+          type: array
+          items:
+            type: object
+            required:
+              - notification_id
+              - recipient_id
+            properties:
+              notification_id:
+                type: string
+                format: uuid
+                description: UUID of the created notification
+              recipient_id:
+                type: string
+                format: uuid
+                description: UUID of the recipient user
+          description: List of created notifications mapped to recipients
+        queued_count:
+          type: integer
+          description: Number of notifications successfully queued
+        message:
+          type: string
+
+    NotificationDetail:
+      type: object
+      required:
+        - notification_id
+        - recipient_email
+        - subject
+        - notification_type
+        - status
+        - created_at
+        - retry_count
+        - max_retries
+      properties:
+        notification_id:
+          type: string
+          format: uuid
+        recipient_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Recipient user ID (null for email-only notifications)
+        recipient_email:
+          type: string
+          format: email
+        subject:
+          type: string
+        message:
+          type: string
+          nullable: true
+          description: Message body (may be omitted for brevity)
+        notification_type:
+          type: string
+          enum: [email]
+        status:
+          type: string
+          enum: [pending, queued, sent, failed]
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if status is failed
+        retry_count:
+          type: integer
+          minimum: 0
+        max_retries:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        queued_at:
+          type: string
+          format: date-time
+          nullable: true
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+        failed_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Template-specific metadata
+
+    NotificationListResponse:
+      type: object
+      required:
+        - results
+        - count
+        - next
+        - previous
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationDetail'
+        count:
+          type: integer
+          description: Total number of notifications matching filters
+        next:
+          type: string
+          format: uri
+          nullable: true
+          description: URL to next page
+        previous:
+          type: string
+          format: uri
+          nullable: true
+          description: URL to previous page
+
+    NotificationStats:
+      type: object
+      properties:
+        total_notifications:
+          type: integer
+        status_breakdown:
+          type: object
+          properties:
+            pending:
+              type: integer
+            queued:
+              type: integer
+            sent:
+              type: integer
+            failed:
+              type: integer
+        type_breakdown:
+          type: object
+          properties:
+            email:
+              type: integer
+        success_rate:
+          type: number
+          format: float
+          description: Success rate (sent / total)
+        average_send_time_seconds:
+          type: number
+          format: float
+          description: Average time from queued to sent
+        failed_notifications:
+          type: object
+          properties:
+            total:
+              type: integer
+            by_error_type:
+              type: object
+              additionalProperties:
+                type: integer
+        date_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+
+    TemplateInfo:
+      type: object
+      properties:
+        template_type:
+          type: string
+        display_name:
+          type: string
+        description:
+          type: string
+        required_fields:
+          type: array
+          items:
+            type: string
+        endpoint:
+          type: string
+          description: API endpoint for this template
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy, degraded]
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [ok, failed, degraded]
+            redis:
+              type: string
+              enum: [ok, failed, degraded]
+            smtp:
+              type: string
+              enum: [ok, failed, degraded]
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        detail:
+          type: string
+          description: Additional error details
+        errors:
+          type: object
+          additionalProperties: true
+          description: Field-specific validation errors
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: bad_request
+            message: Invalid request parameters
+            errors:
+              recipient_ids: "Array must contain at least 1 item"
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: unauthorized
+            message: Authentication credentials were not provided or are invalid
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: forbidden
+            message: You do not have permission to perform this action
+            detail: "Requires notification:admin scope or valid follower relationship"
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: not_found
+            message: The requested resource was not found
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per minute
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests (0)
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when rate limit resets
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until rate limit resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: rate_limit_exceeded
+            message: Rate limit exceeded. Please try again later.
+            detail: "Limit: 100 requests per minute"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: internal_server_error
+            message: An unexpected error occurred. Please try again later.
