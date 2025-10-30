@@ -6,7 +6,9 @@ from pydantic import ValidationError
 from core.config.downstream_urls import USER_SERVICE_BASE_URL
 from core.exceptions import UserNotFoundError
 from core.schemas.user import UserSearchResult
-from core.services.downstream.base_downstream_client import BaseDownstreamClient
+from core.services.downstream.base_downstream_client import (
+    BaseDownstreamClient,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -75,6 +77,73 @@ class UserClient(BaseDownstreamClient):
                 error=str(e),
             )
             raise
+
+    def validate_follower_relationship(
+        self, follower_id: str, followee_id: str
+    ) -> bool:
+        """Validate if a follower relationship exists between two users.
+
+        Args:
+            follower_id: UUID of the user who is following (string format)
+            followee_id: UUID of the user being followed (string format)
+
+        Returns:
+            True if follower_id follows followee_id, False otherwise
+
+        Raises:
+            DownstreamServiceUnavailableError: If service is unavailable
+            requests.Timeout: If request times out
+            requests.ConnectionError: If connection fails
+        """
+        url = (
+            f"{self.base_url}/user-management/users/"
+            f"{follower_id}/following/{followee_id}"
+        )
+
+        logger.info(
+            "Validating follower relationship",
+            follower_id=follower_id,
+            followee_id=followee_id,
+        )
+
+        try:
+            response = self._make_request("GET", url)
+
+            # 200 = relationship exists, 404 = relationship does not exist
+            if response.status_code == 200:
+                logger.info(
+                    "Follower relationship validated",
+                    follower_id=follower_id,
+                    followee_id=followee_id,
+                )
+                return True
+            elif response.status_code == 404:
+                logger.info(
+                    "Follower relationship does not exist",
+                    follower_id=follower_id,
+                    followee_id=followee_id,
+                )
+                return False
+            else:
+                # For any other status code, return False
+                logger.warning(
+                    "Unexpected status code when validating follower relationship",
+                    follower_id=follower_id,
+                    followee_id=followee_id,
+                    status_code=response.status_code,
+                )
+                return False
+
+        except Exception as e:
+            logger.error(
+                "Failed to validate follower relationship",
+                follower_id=follower_id,
+                followee_id=followee_id,
+                error=str(e),
+            )
+            # If the service is unavailable or errors, we should fail closed
+            # and deny the relationship
+            return False
 
 
 # Global service instance

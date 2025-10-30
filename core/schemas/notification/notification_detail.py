@@ -4,11 +4,13 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class NotificationDetail(BaseModel):
     """Schema for notification details."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     notification_id: UUID
     recipient_email: EmailStr
@@ -25,8 +27,3 @@ class NotificationDetail(BaseModel):
     failed_at: datetime | None
     metadata: dict[str, Any] | None
     recipient_id: UUID | None
-
-    class Config:
-        """Pydantic configuration."""
-
-        from_attributes = True

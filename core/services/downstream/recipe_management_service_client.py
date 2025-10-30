@@ -11,11 +11,11 @@ from core.services.downstream.base_downstream_client import BaseDownstreamClient
 logger = structlog.get_logger(__name__)
 
 
-class RecipeClient(BaseDownstreamClient):
+class RecipeManagementServiceClient(BaseDownstreamClient):
     """Client for communicating with recipe-management service."""
 
     def __init__(self):
-        """Initialize recipe client with service configuration."""
+        """Initialize recipe management service client with service configuration."""
         super().__init__(
             service_name="recipe-management",
             base_url=RECIPE_SERVICE_BASE_URL,
@@ -80,4 +80,4 @@ class RecipeClient(BaseDownstreamClient):
 
 
 # Global service instance
-recipe_client = RecipeClient()
+recipe_management_service_client = RecipeManagementServiceClient()

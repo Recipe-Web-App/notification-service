@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DifficultyLevel(str, Enum):
@@ -24,6 +24,11 @@ class RecipeDto(BaseModel):
     This schema matches the GET /recipes/{recipeId} response.
     Includes required fields and commonly used optional fields.
     """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        use_enum_values=False,
+    )
 
     # Required fields
     recipe_id: int = Field(
@@ -57,12 +62,6 @@ class RecipeDto(BaseModel):
     updated_at: datetime | None = Field(
         None, alias="updatedAt", description="Last update timestamp"
     )
-
-    class Config:
-        """Pydantic configuration."""
-
-        populate_by_name = True
-        use_enum_values = False
 
     @field_validator("title")
     @classmethod
