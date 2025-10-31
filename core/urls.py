@@ -6,6 +6,7 @@ from .views import (
     HealthCheckView,
     LivenessCheckView,
     ReadinessCheckView,
+    RecipeCommentedView,
     RecipeLikedView,
     RecipePublishedView,
 )
@@ -25,5 +26,10 @@ urlpatterns = [
         "notifications/recipe-liked",
         RecipeLikedView.as_view(),
         name="recipe-liked",
+    ),
+    path(
+        "notifications/recipe-commented",
+        RecipeCommentedView.as_view(),
+        name="recipe-commented",
     ),
 ]

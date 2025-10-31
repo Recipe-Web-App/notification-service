@@ -56,6 +56,23 @@ class UserNotFoundError(DownstreamServiceError):
         )
 
 
+class CommentNotFoundError(DownstreamServiceError):
+    """Comment not found in recipe-management service (404)."""
+
+    def __init__(self, comment_id: str):
+        """Initialize comment not found error.
+
+        Args:
+            comment_id: ID of the comment that was not found
+        """
+        self.comment_id = comment_id
+        super().__init__(
+            message=f"Comment with ID {comment_id} not found",
+            service_name="recipe-management",
+            status_code=404,
+        )
+
+
 class DownstreamServiceUnavailableError(DownstreamServiceError):
     """Downstream service is unavailable (500/503 errors)."""
 
