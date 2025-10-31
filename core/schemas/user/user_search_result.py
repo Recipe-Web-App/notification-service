@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserSearchResult(BaseModel):
@@ -13,11 +13,14 @@ class UserSearchResult(BaseModel):
     Represents public profile information for a user.
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     # Required fields
     user_id: UUID = Field(
         ..., alias="userId", description="Unique identifier for the user"
     )
     username: str = Field(..., description="Username for the user account")
+    email: str = Field(..., description="Email address for the user")
     is_active: bool = Field(
         ..., alias="isActive", description="Whether the user account is active"
     )
@@ -34,8 +37,3 @@ class UserSearchResult(BaseModel):
     full_name: str | None = Field(
         None, alias="fullName", description="Full name of the user"
     )
-
-    class Config:
-        """Pydantic configuration."""
-
-        populate_by_name = True

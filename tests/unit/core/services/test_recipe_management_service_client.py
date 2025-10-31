@@ -1,4 +1,4 @@
-"""Tests for RecipeClient."""
+"""Tests for RecipeManagementServiceClient."""
 
 from decimal import Decimal
 from unittest.mock import patch
@@ -15,16 +15,16 @@ from core.exceptions import (
     RecipeNotFoundError,
 )
 from core.schemas.recipe import RecipeDto
-from core.services.downstream import RecipeClient
+from core.services.downstream import RecipeManagementServiceClient
 
 
-class TestRecipeClient:
-    """Test suite for RecipeClient."""
+class TestRecipeManagementServiceClient:
+    """Test suite for RecipeManagementServiceClient."""
 
     @pytest.fixture
     def recipe_client(self):
-        """Create RecipeClient instance."""
-        return RecipeClient()
+        """Create RecipeManagementServiceClient instance."""
+        return RecipeManagementServiceClient()
 
     @pytest.fixture
     def sample_recipe_data(self):

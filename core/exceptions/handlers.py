@@ -14,6 +14,11 @@ from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
+from core.exceptions.downstream_exceptions import (
+    CommentNotFoundError,
+    RecipeNotFoundError,
+    UserNotFoundError,
+)
 from core.logging.context import get_request_id
 
 logger = logging.getLogger(__name__)
@@ -43,9 +48,18 @@ def custom_exception_handler(
     # Let DRF handle its own exceptions first
     response = exception_handler(exc, context)
 
-    # If DRF didn't handle it, handle Django exceptions
+    # If DRF didn't handle it, handle Django exceptions and custom exceptions
     if response is None:
-        if isinstance(exc, Http404):
+        if isinstance(
+            exc, (CommentNotFoundError, RecipeNotFoundError, UserNotFoundError)
+        ):
+            response_data = _create_error_response(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message=str(exc),
+                request_id=request_id,
+            )
+            response = Response(response_data, status=status.HTTP_404_NOT_FOUND)
+        elif isinstance(exc, Http404):
             response_data = _create_error_response(
                 status_code=status.HTTP_404_NOT_FOUND,
                 message="The requested resource was not found.",

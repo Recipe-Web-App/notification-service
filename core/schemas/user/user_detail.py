@@ -1,9 +1,8 @@
 """Detailed user schema with extended user information."""
 
 from datetime import datetime
-from typing import Any, ClassVar
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from core.schemas.user.user_base import UserBase
 
@@ -14,18 +13,9 @@ class UserDetail(UserBase):
     Includes all fields from UserBase plus additional profile details.
     """
 
-    role: str = Field(..., description="User role (ADMIN or USER)")
-    full_name: str | None = Field(None, max_length=255, description="User's full name")
-    bio: str | None = Field(None, description="User biography/description")
-    is_active: bool = Field(default=True, description="Whether user account is active")
-    created_at: datetime = Field(..., description="Account creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
-
-    class Config:
-        """Pydantic model configuration."""
-
-        from_attributes = True  # Allow creation from ORM models
-        json_schema_extra: ClassVar[dict[str, dict[str, Any]]] = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "username": "johndoe",
@@ -37,4 +27,12 @@ class UserDetail(UserBase):
                 "created_at": "2024-01-15T10:30:00Z",
                 "updated_at": "2024-01-20T14:45:00Z",
             }
-        }
+        },
+    )
+
+    role: str = Field(..., description="User role (ADMIN or USER)")
+    full_name: str | None = Field(None, max_length=255, description="User's full name")
+    bio: str | None = Field(None, description="User biography/description")
+    is_active: bool = Field(default=True, description="Whether user account is active")
+    created_at: datetime = Field(..., description="Account creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
