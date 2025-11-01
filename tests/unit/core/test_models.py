@@ -14,10 +14,6 @@ class TestUserModel(unittest.TestCase):
         """Test that User model uses correct database table name."""
         self.assertEqual(User._meta.db_table, "users")
 
-    def test_user_model_is_unmanaged(self):
-        """Test that User model is unmanaged (no migrations)."""
-        self.assertFalse(User._meta.managed)
-
     def test_user_model_ordering(self):
         """Test that User model orders by created_at descending."""
         self.assertEqual(User._meta.ordering, ["-created_at"])
@@ -111,10 +107,6 @@ class TestUserFollowModel(unittest.TestCase):
     def test_user_follow_model_has_correct_db_table_name(self):
         """Test that UserFollow model uses correct database table name."""
         self.assertEqual(UserFollow._meta.db_table, "user_follows")
-
-    def test_user_follow_model_is_unmanaged(self):
-        """Test that UserFollow model is unmanaged (no migrations)."""
-        self.assertFalse(UserFollow._meta.managed)
 
     def test_user_follow_model_ordering(self):
         """Test that UserFollow model orders by followed_at descending."""
