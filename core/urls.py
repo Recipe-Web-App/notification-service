@@ -5,6 +5,8 @@ from django.urls import path
 from .views import (
     HealthCheckView,
     LivenessCheckView,
+    MentionView,
+    NewFollowerView,
     ReadinessCheckView,
     RecipeCommentedView,
     RecipeLikedView,
@@ -31,5 +33,15 @@ urlpatterns = [
         "notifications/recipe-commented",
         RecipeCommentedView.as_view(),
         name="recipe-commented",
+    ),
+    path(
+        "notifications/new-follower",
+        NewFollowerView.as_view(),
+        name="new-follower",
+    ),
+    path(
+        "notifications/mention",
+        MentionView.as_view(),
+        name="mention",
     ),
 ]

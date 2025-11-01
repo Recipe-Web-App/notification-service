@@ -1,0 +1,43 @@
+{% extends "emails/base.html" %}
+
+{% block title %}{{ follower_name }} is now following you{% endblock %}
+
+{% block header %}New Follower{% endblock %}
+
+{% block content %}
+<h2>Hi {{ recipient_name }}!</h2>
+
+<p><strong>{{ follower_name }}</strong> (@{{ follower_username }}) started following you!</p>
+
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196F3;">
+    <div style="margin-bottom: 10px;">
+        <strong style="color: #2c3e50; font-size: 18px;">@{{ follower_username }}</strong>
+    </div>
+    {% if follower_bio %}
+    <p style="margin: 10px 0; color: #555555; font-size: 14px;">{{ follower_bio }}</p>
+    {% endif %}
+    <p style="margin: 10px 0 0 0; color: #666666; font-size: 14px;">
+        {% if recipe_count == 0 %}
+        No recipes yet
+        {% elif recipe_count == 1 %}
+        <strong>1</strong> recipe
+        {% else %}
+        <strong>{{ recipe_count }}</strong> recipes
+        {% endif %}
+    </p>
+</div>
+
+<p style="text-align: center;">
+    <a href="{{ profile_url }}" class="button">View Profile</a>
+</p>
+
+{% if recipe_count > 0 %}
+<p style="text-align: center; margin-top: 15px;">
+    <a href="{{ recipes_url }}" style="color: #2196F3; text-decoration: none; font-size: 14px;">Check out their recipes &rarr;</a>
+</p>
+{% endif %}
+
+<p style="color: #666666; font-size: 14px; margin-top: 30px;">
+    You received this because {{ follower_name }} started following you.
+</p>
+{% endblock %}
