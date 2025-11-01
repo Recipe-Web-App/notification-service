@@ -5,7 +5,8 @@ from decimal import Decimal
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
-import pytest
+from django.test import TestCase
+
 from rest_framework.exceptions import PermissionDenied
 
 from core.auth.oauth2 import OAuth2User
@@ -18,45 +19,31 @@ from core.services.recipe_notification_service import (
 )
 
 
-@pytest.mark.django_db
-class TestRecipeNotificationService:
+class TestRecipeNotificationService(TestCase):
     """Test suite for RecipeNotificationService."""
 
-    @pytest.fixture
-    def service(self):
-        """Create RecipeNotificationService instance."""
-        return RecipeNotificationService()
+    def setUp(self):
+        """Set up test fixtures."""
+        self.service = RecipeNotificationService()
 
-    @pytest.fixture
-    def admin_user(self):
-        """Create admin OAuth2 user."""
-        return OAuth2User(
+        self.admin_user = OAuth2User(
             user_id=str(uuid4()),
             client_id="test-client",
             scopes=["notification:admin"],
         )
 
-    @pytest.fixture
-    def regular_user(self):
-        """Create regular OAuth2 user with notification:user scope."""
-        return OAuth2User(
+        self.regular_user = OAuth2User(
             user_id=str(uuid4()),
             client_id="test-client",
             scopes=["notification:user"],
         )
 
-    @pytest.fixture
-    def recipe_published_request(self):
-        """Create recipe published request."""
-        return RecipePublishedRequest(
+        self.recipe_published_request = RecipePublishedRequest(
             recipient_ids=[uuid4(), uuid4()],
             recipe_id=uuid4(),
         )
 
-    @pytest.fixture
-    def mock_recipe(self):
-        """Create mock recipe."""
-        return RecipeDto(
+        self.mock_recipe = RecipeDto(
             recipe_id=123,
             user_id=uuid4(),
             title="Test Recipe",
@@ -64,10 +51,7 @@ class TestRecipeNotificationService:
             created_at="2025-10-29T12:00:00Z",
         )
 
-    @pytest.fixture
-    def mock_user(self):
-        """Create mock user."""
-        return UserSearchResult(
+        self.mock_user = UserSearchResult(
             user_id=uuid4(),
             username="testuser",
             email="test@example.com",
@@ -85,42 +69,37 @@ class TestRecipeNotificationService:
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
-        service,
-        admin_user,
-        recipe_published_request,
-        mock_recipe,
-        mock_user,
     ):
         """Test sending notifications with admin scope bypasses follower check."""
         # Setup mocks
-        mock_recipe_client.get_recipe.return_value = mock_recipe
-        mock_user_client.get_user.return_value = mock_user
+        mock_recipe_client.get_recipe.return_value = self.mock_recipe
+        mock_user_client.get_user.return_value = self.mock_user
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
         mock_notification_service.create_notification.return_value = mock_notification
 
         # Execute
-        response = service.send_recipe_published_notifications(
-            request=recipe_published_request,
-            authenticated_user=admin_user,
+        response = self.service.send_recipe_published_notifications(
+            request=self.recipe_published_request,
+            authenticated_user=self.admin_user,
         )
 
         # Assertions
-        assert response.queued_count == 2
-        assert len(response.notifications) == 2
-        assert response.message == "Notifications queued successfully"
+        self.assertEqual(response.queued_count, 2)
+        self.assertEqual(len(response.notifications), 2)
+        self.assertEqual(response.message, "Notifications queued successfully")
 
         # Verify recipe was fetched
         mock_recipe_client.get_recipe.assert_called_once_with(
-            int(recipe_published_request.recipe_id)
+            int(self.recipe_published_request.recipe_id)
         )
 
         # Verify follower validation was NOT called (admin bypass)
         mock_user_client.validate_follower_relationship.assert_not_called()
 
         # Verify notification service called for each recipient
-        assert mock_notification_service.create_notification.call_count == 2
+        self.assertEqual(mock_notification_service.create_notification.call_count, 2)
 
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
@@ -130,16 +109,11 @@ class TestRecipeNotificationService:
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
-        service,
-        regular_user,
-        recipe_published_request,
-        mock_recipe,
-        mock_user,
     ):
         """Test sending notifications with user scope validates followers."""
         # Setup mocks
-        mock_recipe_client.get_recipe.return_value = mock_recipe
-        mock_user_client.get_user.return_value = mock_user
+        mock_recipe_client.get_recipe.return_value = self.mock_recipe
+        mock_user_client.get_user.return_value = self.mock_user
         # All recipients are valid followers
         mock_user_client.validate_follower_relationship.return_value = True
 
@@ -148,37 +122,34 @@ class TestRecipeNotificationService:
         mock_notification_service.create_notification.return_value = mock_notification
 
         # Execute
-        response = service.send_recipe_published_notifications(
-            request=recipe_published_request,
-            authenticated_user=regular_user,
+        response = self.service.send_recipe_published_notifications(
+            request=self.recipe_published_request,
+            authenticated_user=self.regular_user,
         )
 
         # Assertions
-        assert response.queued_count == 2
-        assert len(response.notifications) == 2
+        self.assertEqual(response.queued_count, 2)
+        self.assertEqual(len(response.notifications), 2)
 
         # Verify follower validation was called for each recipient
-        assert mock_user_client.validate_follower_relationship.call_count == 2
+        self.assertEqual(mock_user_client.validate_follower_relationship.call_count, 2)
 
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     def test_send_notifications_recipe_not_found(
         self,
         mock_recipe_client,
-        service,
-        admin_user,
-        recipe_published_request,
     ):
         """Test recipe not found raises RecipeNotFoundError."""
         # Setup mock to raise RecipeNotFoundError
         mock_recipe_client.get_recipe.side_effect = RecipeNotFoundError(
-            recipe_id=int(recipe_published_request.recipe_id)
+            recipe_id=int(self.recipe_published_request.recipe_id)
         )
 
         # Execute and assert
-        with pytest.raises(RecipeNotFoundError):
-            service.send_recipe_published_notifications(
-                request=recipe_published_request,
-                authenticated_user=admin_user,
+        with self.assertRaises(RecipeNotFoundError):
+            self.service.send_recipe_published_notifications(
+                request=self.recipe_published_request,
+                authenticated_user=self.admin_user,
             )
 
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
@@ -187,14 +158,10 @@ class TestRecipeNotificationService:
         self,
         mock_user_client,
         mock_recipe_client,
-        service,
-        regular_user,
-        recipe_published_request,
-        mock_recipe,
     ):
         """Test invalid follower relationships raises PermissionDenied."""
         # Setup mocks
-        mock_recipe_client.get_recipe.return_value = mock_recipe
+        mock_recipe_client.get_recipe.return_value = self.mock_recipe
         # First recipient is valid, second is not
         mock_user_client.validate_follower_relationship.side_effect = [
             True,
@@ -202,13 +169,13 @@ class TestRecipeNotificationService:
         ]
 
         # Execute and assert
-        with pytest.raises(PermissionDenied) as exc_info:
-            service.send_recipe_published_notifications(
-                request=recipe_published_request,
-                authenticated_user=regular_user,
+        with self.assertRaises(PermissionDenied) as exc_info:
+            self.service.send_recipe_published_notifications(
+                request=self.recipe_published_request,
+                authenticated_user=self.regular_user,
             )
 
-        assert "not followers" in str(exc_info.value.detail).lower()
+        self.assertIn("not followers", str(exc_info.exception.detail).lower())
 
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
@@ -220,16 +187,11 @@ class TestRecipeNotificationService:
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
-        service,
-        admin_user,
-        recipe_published_request,
-        mock_recipe,
-        mock_user,
     ):
         """Test email template is rendered with correct context."""
         # Setup mocks
-        mock_recipe_client.get_recipe.return_value = mock_recipe
-        mock_user_client.get_user.return_value = mock_user
+        mock_recipe_client.get_recipe.return_value = self.mock_recipe
+        mock_user_client.get_user.return_value = self.mock_user
         mock_render.return_value = "<html>Test email</html>"
 
         mock_notification = Mock()
@@ -237,19 +199,19 @@ class TestRecipeNotificationService:
         mock_notification_service.create_notification.return_value = mock_notification
 
         # Execute
-        service.send_recipe_published_notifications(
-            request=recipe_published_request,
-            authenticated_user=admin_user,
+        self.service.send_recipe_published_notifications(
+            request=self.recipe_published_request,
+            authenticated_user=self.admin_user,
         )
 
         # Verify template was rendered
-        assert mock_render.call_count == 2
+        self.assertEqual(mock_render.call_count, 2)
         first_call = mock_render.call_args_list[0]
-        assert first_call[0][0] == "emails/recipe_published.html"
-        assert "recipient_name" in first_call[0][1]
-        assert "author_name" in first_call[0][1]
-        assert "recipe_title" in first_call[0][1]
-        assert "recipe_url" in first_call[0][1]
+        self.assertEqual(first_call[0][0], "emails/recipe_published.html")
+        self.assertIn("recipient_name", first_call[0][1])
+        self.assertIn("author_name", first_call[0][1])
+        self.assertIn("recipe_title", first_call[0][1])
+        self.assertIn("recipe_url", first_call[0][1])
 
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
@@ -259,34 +221,31 @@ class TestRecipeNotificationService:
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
-        service,
-        admin_user,
-        recipe_published_request,
-        mock_recipe,
-        mock_user,
     ):
         """Test notifications include correct metadata."""
         # Setup mocks
-        mock_recipe_client.get_recipe.return_value = mock_recipe
-        mock_user_client.get_user.return_value = mock_user
+        mock_recipe_client.get_recipe.return_value = self.mock_recipe
+        mock_user_client.get_user.return_value = self.mock_user
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
         mock_notification_service.create_notification.return_value = mock_notification
 
         # Execute
-        service.send_recipe_published_notifications(
-            request=recipe_published_request,
-            authenticated_user=admin_user,
+        self.service.send_recipe_published_notifications(
+            request=self.recipe_published_request,
+            authenticated_user=self.admin_user,
         )
 
         # Verify metadata was included in notification creation
         call_args = mock_notification_service.create_notification.call_args
         metadata = call_args[1]["metadata"]
 
-        assert metadata["template_type"] == "recipe_published"
-        assert metadata["recipe_id"] == str(recipe_published_request.recipe_id)
-        assert metadata["author_id"] == str(mock_recipe.user_id)
+        self.assertEqual(metadata["template_type"], "recipe_published")
+        self.assertEqual(
+            metadata["recipe_id"], str(self.recipe_published_request.recipe_id)
+        )
+        self.assertEqual(metadata["author_id"], str(self.mock_recipe.user_id))
 
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
@@ -296,27 +255,22 @@ class TestRecipeNotificationService:
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
-        service,
-        admin_user,
-        recipe_published_request,
-        mock_recipe,
-        mock_user,
     ):
         """Test notifications are queued for async processing."""
         # Setup mocks
-        mock_recipe_client.get_recipe.return_value = mock_recipe
-        mock_user_client.get_user.return_value = mock_user
+        mock_recipe_client.get_recipe.return_value = self.mock_recipe
+        mock_user_client.get_user.return_value = self.mock_user
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
         mock_notification_service.create_notification.return_value = mock_notification
 
         # Execute
-        service.send_recipe_published_notifications(
-            request=recipe_published_request,
-            authenticated_user=admin_user,
+        self.service.send_recipe_published_notifications(
+            request=self.recipe_published_request,
+            authenticated_user=self.admin_user,
         )
 
         # Verify queue flag was set to True
         call_args = mock_notification_service.create_notification.call_args
-        assert call_args[1]["queue"] is True
+        self.assertIs(call_args[1]["auto_queue"], True)

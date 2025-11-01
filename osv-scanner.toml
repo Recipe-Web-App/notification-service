@@ -5,3 +5,8 @@
 id = "PYSEC-2022-42969"
 ignoreUntil = 2025-12-31
 reason = "py 1.11.0 required by interrogate (dev only). ReDoS in SVN parsing not used by interrogate. Library deprecated, no fix available."
+
+[[IgnoredVulns]]
+id = "GHSA-2qfp-q593-8484"
+ignoreUntil = 2025-12-31
+reason = "brotli 1.1.0 required by geventhttpclient/locust (test/performance only). CVE-2025-6176: Decompression bomb DoS - requires attacker-controlled input which doesn't occur in tests. Fix available in brotli 1.2.0 but not yet released to PyPI (as of 2025-10-31)."

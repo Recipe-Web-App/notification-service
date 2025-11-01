@@ -1,5 +1,7 @@
 """Test-specific Django settings."""
 
+from django.db.models.signals import class_prepared
+
 from .settings import *
 
 # Use SQLite for faster tests
@@ -55,3 +57,20 @@ LOGGING = {
 
 # Test-specific settings
 TEST_MODE = True
+
+# Force unmanaged models to be managed ONLY for tests
+# The Notification and User models have managed=False because this service
+# doesn't own the database schema. But we need the tables created for tests.
+
+
+def make_unmanaged_models_managed(sender, **_kwargs):
+    """Signal handler to make unmanaged models managed during tests.
+
+    This fires when each model class is prepared by Django.
+    """
+    if not sender._meta.managed:
+        sender._meta.managed = True
+
+
+# Connect the signal - this will fire for each model as it's loaded
+class_prepared.connect(make_unmanaged_models_managed)

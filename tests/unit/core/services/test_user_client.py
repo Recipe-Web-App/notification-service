@@ -2,7 +2,8 @@
 
 from uuid import uuid4
 
-import pytest
+from django.test import TestCase
+
 import requests
 import responses
 from pydantic import ValidationError
@@ -16,20 +17,17 @@ from core.schemas.user import UserSearchResult
 from core.services.downstream import UserClient
 
 
-class TestUserClient:
+class TestUserClient(TestCase):
     """Test suite for UserClient."""
 
-    @pytest.fixture
-    def user_client(self):
-        """Create UserClient instance."""
-        return UserClient()
+    def setUp(self):
+        """Set up test fixtures."""
+        self.user_client = UserClient()
 
-    @pytest.fixture
-    def sample_user_data(self):
-        """Sample user response data from user-management service."""
-        return {
+        self.sample_user_data = {
             "userId": str(uuid4()),
             "username": "johndoe",
+            "email": "johndoe@example.com",
             "fullName": "John Doe",
             "isActive": True,
             "createdAt": "2025-10-01T10:00:00Z",
@@ -37,38 +35,38 @@ class TestUserClient:
         }
 
     @responses.activate
-    def test_get_user_success(self, user_client, sample_user_data):
+    def test_get_user_success(self):
         """Test successful user fetch."""
-        user_id = sample_user_data["userId"]
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        user_id = self.sample_user_data["userId"]
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock the HTTP response
         responses.add(
             responses.GET,
             url,
-            json=sample_user_data,
+            json=self.sample_user_data,
             status=200,
         )
 
         # Fetch user
-        user = user_client.get_user(user_id)
+        user = self.user_client.get_user(user_id)
 
         # Assertions
-        assert isinstance(user, UserSearchResult)
-        assert str(user.user_id) == user_id
-        assert user.username == "johndoe"
-        assert user.full_name == "John Doe"
-        assert user.is_active is True
+        self.assertIsInstance(user, UserSearchResult)
+        self.assertEqual(str(user.user_id), user_id)
+        self.assertEqual(user.username, "johndoe")
+        self.assertEqual(user.full_name, "John Doe")
+        self.assertIs(user.is_active, True)
 
         # Verify request had no authorization header (public endpoint)
-        assert len(responses.calls) == 1
-        assert "Authorization" not in responses.calls[0].request.headers
+        self.assertEqual(len(responses.calls), 1)
+        self.assertNotIn("Authorization", responses.calls[0].request.headers)
 
     @responses.activate
-    def test_get_user_not_found(self, user_client):
+    def test_get_user_not_found(self):
         """Test user not found (404) raises UserNotFoundError."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock 404 response
         responses.add(
@@ -79,18 +77,18 @@ class TestUserClient:
         )
 
         # Should raise UserNotFoundError
-        with pytest.raises(UserNotFoundError) as exc_info:
-            user_client.get_user(user_id)
+        with self.assertRaises(UserNotFoundError) as exc_info:
+            self.user_client.get_user(user_id)
 
-        assert exc_info.value.user_id == user_id
-        assert exc_info.value.status_code == 404
-        assert user_id in str(exc_info.value)
+        self.assertEqual(exc_info.exception.user_id, user_id)
+        self.assertEqual(exc_info.exception.status_code, 404)
+        self.assertIn(user_id, str(exc_info.exception))
 
     @responses.activate
-    def test_get_user_server_error(self, user_client):
+    def test_get_user_server_error(self):
         """Test server error (500) raises DownstreamServiceUnavailableError."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock 500 response
         responses.add(
@@ -101,17 +99,17 @@ class TestUserClient:
         )
 
         # Should raise DownstreamServiceUnavailableError
-        with pytest.raises(DownstreamServiceUnavailableError) as exc_info:
-            user_client.get_user(user_id)
+        with self.assertRaises(DownstreamServiceUnavailableError) as exc_info:
+            self.user_client.get_user(user_id)
 
-        assert exc_info.value.status_code == 500
-        assert exc_info.value.service_name == "user-management"
+        self.assertEqual(exc_info.exception.status_code, 500)
+        self.assertEqual(exc_info.exception.service_name, "user-management")
 
     @responses.activate
-    def test_get_user_service_unavailable(self, user_client):
+    def test_get_user_service_unavailable(self):
         """Test service unavailable (503) raises DownstreamServiceUnavailableError."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock 503 response
         responses.add(
@@ -122,16 +120,16 @@ class TestUserClient:
         )
 
         # Should raise DownstreamServiceUnavailableError
-        with pytest.raises(DownstreamServiceUnavailableError) as exc_info:
-            user_client.get_user(user_id)
+        with self.assertRaises(DownstreamServiceUnavailableError) as exc_info:
+            self.user_client.get_user(user_id)
 
-        assert exc_info.value.status_code == 503
+        self.assertEqual(exc_info.exception.status_code, 503)
 
     @responses.activate
-    def test_get_user_validation_error(self, user_client):
+    def test_get_user_validation_error(self):
         """Test validation error (422) raises DownstreamServiceError."""
         user_id = "invalid-uuid"
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock 422 response
         responses.add(
@@ -150,16 +148,16 @@ class TestUserClient:
         )
 
         # Should raise DownstreamServiceError
-        with pytest.raises(DownstreamServiceError) as exc_info:
-            user_client.get_user(user_id)
+        with self.assertRaises(DownstreamServiceError) as exc_info:
+            self.user_client.get_user(user_id)
 
-        assert exc_info.value.status_code == 422
+        self.assertEqual(exc_info.exception.status_code, 422)
 
     @responses.activate
-    def test_get_user_timeout(self, user_client):
+    def test_get_user_timeout(self):
         """Test request timeout raises requests.Timeout."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock timeout
         responses.add(
@@ -169,14 +167,14 @@ class TestUserClient:
         )
 
         # Should raise requests.Timeout
-        with pytest.raises(requests.Timeout):
-            user_client.get_user(user_id)
+        with self.assertRaises(requests.Timeout):
+            self.user_client.get_user(user_id)
 
     @responses.activate
-    def test_get_user_connection_error(self, user_client):
+    def test_get_user_connection_error(self):
         """Test connection error raises requests.ConnectionError."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock connection error
         responses.add(
@@ -186,14 +184,14 @@ class TestUserClient:
         )
 
         # Should raise requests.ConnectionError
-        with pytest.raises(requests.ConnectionError):
-            user_client.get_user(user_id)
+        with self.assertRaises(requests.ConnectionError):
+            self.user_client.get_user(user_id)
 
     @responses.activate
-    def test_get_user_invalid_response_data(self, user_client):
+    def test_get_user_invalid_response_data(self):
         """Test invalid response data raises ValidationError."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock response with invalid data (missing required fields)
         responses.add(
@@ -208,19 +206,20 @@ class TestUserClient:
         )
 
         # Should raise ValidationError (from Pydantic)
-        with pytest.raises(ValidationError):
-            user_client.get_user(user_id)
+        with self.assertRaises(ValidationError):
+            self.user_client.get_user(user_id)
 
     @responses.activate
-    def test_get_user_without_full_name(self, user_client):
+    def test_get_user_without_full_name(self):
         """Test user response without optional fullName field."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock response without fullName (optional field)
         user_data = {
             "userId": user_id,
             "username": "johndoe",
+            "email": "johndoe@example.com",
             "isActive": True,
             "createdAt": "2025-10-01T10:00:00Z",
             "updatedAt": "2025-10-28T12:00:00Z",
@@ -234,23 +233,24 @@ class TestUserClient:
         )
 
         # Fetch user
-        user = user_client.get_user(user_id)
+        user = self.user_client.get_user(user_id)
 
         # Assertions
-        assert user.username == "johndoe"
-        assert user.full_name is None  # Optional field should be None
-        assert user.is_active is True
+        self.assertEqual(user.username, "johndoe")
+        self.assertIsNone(user.full_name)  # Optional field should be None
+        self.assertIs(user.is_active, True)
 
     @responses.activate
-    def test_get_user_inactive(self, user_client):
+    def test_get_user_inactive(self):
         """Test fetching inactive user."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         # Mock response for inactive user
         user_data = {
             "userId": user_id,
             "username": "inactiveuser",
+            "email": "inactive@example.com",
             "fullName": "Inactive User",
             "isActive": False,
             "createdAt": "2025-10-01T10:00:00Z",
@@ -265,26 +265,27 @@ class TestUserClient:
         )
 
         # Fetch user
-        user = user_client.get_user(user_id)
+        user = self.user_client.get_user(user_id)
 
         # Assertions
-        assert user.is_active is False
-        assert user.username == "inactiveuser"
+        self.assertIs(user.is_active, False)
+        self.assertEqual(user.username, "inactiveuser")
 
-    def test_user_client_no_auth_required(self, user_client):
+    def test_user_client_no_auth_required(self):
         """Test that UserClient is configured to not require authentication."""
         # Verify requires_auth is False
-        assert user_client.requires_auth is False
+        self.assertIs(self.user_client.requires_auth, False)
 
     @responses.activate
-    def test_get_user_headers_no_authorization(self, user_client):
+    def test_get_user_headers_no_authorization(self):
         """Test that requests do not include Authorization header."""
         user_id = str(uuid4())
-        url = f"{user_client.base_url}/user-management/users/{user_id}"
+        url = f"{self.user_client.base_url}/user-management/users/{user_id}"
 
         user_data = {
             "userId": user_id,
             "username": "johndoe",
+            "email": "johndoe@example.com",
             "isActive": True,
             "createdAt": "2025-10-01T10:00:00Z",
             "updatedAt": "2025-10-28T12:00:00Z",
@@ -298,10 +299,10 @@ class TestUserClient:
         )
 
         # Fetch user
-        user_client.get_user(user_id)
+        self.user_client.get_user(user_id)
 
         # Verify no Authorization header
         request_headers = responses.calls[0].request.headers
-        assert "Authorization" not in request_headers
-        assert "Content-Type" in request_headers
-        assert request_headers["Content-Type"] == "application/json"
+        self.assertNotIn("Authorization", request_headers)
+        self.assertIn("Content-Type", request_headers)
+        self.assertEqual(request_headers["Content-Type"], "application/json")
