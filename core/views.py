@@ -11,6 +11,7 @@ from core.auth.oauth2 import OAuth2Authentication
 from core.schemas.notification import (
     MentionRequest,
     NewFollowerRequest,
+    PasswordResetRequest,
     RecipeCommentedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
@@ -21,6 +22,9 @@ from core.services.recipe_notification_service import (
 )
 from core.services.social_notification_service import (
     social_notification_service,
+)
+from core.services.system_notification_service import (
+    system_notification_service,
 )
 
 logger = structlog.get_logger(__name__)
@@ -576,4 +580,93 @@ class MentionView(APIView):
             # Let DRF exception handler handle it
             # (CommentNotFoundError, RecipeNotFoundError,
             # UserNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class PasswordResetView(APIView):
+    """API endpoint for sending password reset notifications.
+
+    Sends email notifications with password reset links.
+    Requires notification:admin scope.
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send password reset notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids,
+                reset_token, and expiry_hours
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks admin scope
+            404 Not Found if recipient user doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Password reset notification request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has required scope (admin only)
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for password reset notifications",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": ("You do not have permission to perform this action"),
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Validate request body with Pydantic
+        try:
+            password_reset_request = PasswordResetRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for password reset notification",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications
+        try:
+            response_data = (
+                system_notification_service.send_password_reset_notifications(
+                    request=password_reset_request,
+                    authenticated_user=request.user,
+                )
+            )
+
+            logger.info(
+                "Password reset notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (UserNotFoundError, PermissionDenied, etc.)
             raise
