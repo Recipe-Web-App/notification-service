@@ -7,6 +7,7 @@ from .views import (
     LivenessCheckView,
     MentionView,
     NewFollowerView,
+    PasswordResetView,
     ReadinessCheckView,
     RecipeCommentedView,
     RecipeLikedView,
@@ -43,5 +44,10 @@ urlpatterns = [
         "notifications/mention",
         MentionView.as_view(),
         name="mention",
+    ),
+    path(
+        "notifications/password-reset",
+        PasswordResetView.as_view(),
+        name="password-reset",
     ),
 ]
