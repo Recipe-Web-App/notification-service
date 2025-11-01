@@ -134,6 +134,58 @@ class RecipeManagementServiceClient(BaseDownstreamClient):
             )
             raise
 
+    def get_user_recipe_count(self, user_id: str) -> int:
+        """Fetch count of published recipes for a user.
+
+        Fetches the count of published recipes for a user from the
+        recipe-management service.
+
+        Args:
+            user_id: User's UUID
+
+        Returns:
+            Integer count of published recipes (0 if user has no recipes
+            or doesn't exist)
+
+        Raises:
+            DownstreamServiceError: For client errors (auth, validation)
+            DownstreamServiceUnavailableError: If service is unavailable
+            requests.Timeout: If request times out
+            requests.ConnectionError: If connection fails
+        """
+        url = f"{self.base_url}/recipes/count/user/{user_id}"
+
+        logger.info(
+            "Fetching user recipe count from recipe-management service", user_id=user_id
+        )
+
+        response = self._make_request("GET", url)
+
+        # Handle 404 - user has no recipes or doesn't exist
+        if response.status_code == 404:
+            logger.info("User has no recipes or user not found", user_id=user_id)
+            return 0
+
+        # Parse response
+        try:
+            data = response.json()
+            count: int = int(data.get("count", 0))
+            logger.info(
+                "Successfully fetched user recipe count",
+                user_id=user_id,
+                count=count,
+            )
+            return count
+
+        except Exception as e:
+            logger.error(
+                "Failed to parse recipe count response",
+                user_id=user_id,
+                error=str(e),
+            )
+            # Default to 0 rather than failing the notification
+            return 0
+
 
 # Global service instance
 recipe_management_service_client = RecipeManagementServiceClient()

@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from core.auth.oauth2 import OAuth2Authentication
 from core.schemas.notification import (
+    NewFollowerRequest,
     RecipeCommentedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
@@ -16,6 +17,9 @@ from core.schemas.notification import (
 from core.services import health_service
 from core.services.recipe_notification_service import (
     recipe_notification_service,
+)
+from core.services.social_notification_service import (
+    social_notification_service,
 )
 
 logger = structlog.get_logger(__name__)
@@ -394,4 +398,92 @@ class RecipeCommentedView(APIView):
         except Exception:
             # Let DRF exception handler handle it
             # (CommentNotFoundError, RecipeNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class NewFollowerView(APIView):
+    """API endpoint for sending new follower notifications.
+
+    Sends email notifications when a user gains a new follower.
+    Requires notification:admin scope.
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send new follower notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids and
+                follower_id
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks admin scope or relationship
+                doesn't exist
+            404 Not Found if follower or recipient user doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "New follower notification request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has required scope (admin only)
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for new follower notifications",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": ("You do not have permission to perform this action"),
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Validate request body with Pydantic
+        try:
+            new_follower_request = NewFollowerRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for new follower notification",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications
+        try:
+            response_data = social_notification_service.send_new_follower_notifications(
+                request=new_follower_request,
+                authenticated_user=request.user,
+            )
+
+            logger.info(
+                "New follower notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (UserNotFoundError, PermissionDenied, etc.)
             raise

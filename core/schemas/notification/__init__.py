@@ -4,6 +4,7 @@ from core.schemas.notification.batch_notification_response import (
     BatchNotificationResponse,
     NotificationCreated,
 )
+from core.schemas.notification.new_follower_request import NewFollowerRequest
 from core.schemas.notification.notification_create import NotificationCreate
 from core.schemas.notification.notification_detail import NotificationDetail
 from core.schemas.notification.notification_list import NotificationList
@@ -18,6 +19,7 @@ from core.schemas.notification.recipe_published_request import (
 
 __all__ = [
     "BatchNotificationResponse",
+    "NewFollowerRequest",
     "NotificationCreate",
     "NotificationCreated",
     "NotificationDetail",
