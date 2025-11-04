@@ -1,5 +1,7 @@
 """API views for core application."""
 
+from uuid import UUID
+
 import structlog
 from pydantic import ValidationError
 from rest_framework import status
@@ -11,12 +13,14 @@ from core.auth.oauth2 import OAuth2Authentication
 from core.schemas.notification import (
     MentionRequest,
     NewFollowerRequest,
+    NotificationDetail,
     PasswordResetRequest,
     RecipeCommentedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
 )
 from core.services import health_service
+from core.services.notification_service import notification_service
 from core.services.recipe_notification_service import (
     recipe_notification_service,
 )
@@ -203,7 +207,6 @@ class RecipePublishedView(APIView):
             response_data = (
                 recipe_notification_service.send_recipe_published_notifications(
                     request=recipe_published_request,
-                    authenticated_user=request.user,
                 )
             )
 
@@ -295,7 +298,6 @@ class RecipeLikedView(APIView):
         try:
             response_data = recipe_notification_service.send_recipe_liked_notifications(
                 request=recipe_liked_request,
-                authenticated_user=request.user,
             )
 
             logger.info(
@@ -386,7 +388,6 @@ class RecipeCommentedView(APIView):
             response_data = (
                 recipe_notification_service.send_recipe_commented_notifications(
                     request=recipe_commented_request,
-                    authenticated_user=request.user,
                 )
             )
 
@@ -475,7 +476,6 @@ class NewFollowerView(APIView):
         try:
             response_data = social_notification_service.send_new_follower_notifications(
                 request=new_follower_request,
-                authenticated_user=request.user,
             )
 
             logger.info(
@@ -563,7 +563,6 @@ class MentionView(APIView):
         try:
             response_data = social_notification_service.send_mention_notifications(
                 request=mention_request,
-                authenticated_user=request.user,
             )
 
             logger.info(
@@ -652,7 +651,6 @@ class PasswordResetView(APIView):
             response_data = (
                 system_notification_service.send_password_reset_notifications(
                     request=password_reset_request,
-                    authenticated_user=request.user,
                 )
             )
 
@@ -669,4 +667,138 @@ class PasswordResetView(APIView):
         except Exception:
             # Let DRF exception handler handle it
             # (UserNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class NotificationDetailView(APIView):
+    """API endpoint for retrieving and deleting individual notifications.
+
+    GET: Retrieve notification details
+    DELETE: Delete a notification
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, notification_id):
+        """Retrieve notification by ID.
+
+        Authorization:
+        - Admin scope: Can view any notification
+        - User scope: Can only view their own notifications
+
+        Query parameters:
+        - include_message: Set to 'true' to include the full message body
+
+        Args:
+            request: HTTP request
+            notification_id: UUID of the notification
+
+        Returns:
+            Response with notification details
+        """
+        logger.info(
+            "Notification detail request received",
+            notification_id=notification_id,
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Validate UUID format
+        try:
+            notification_id_uuid = UUID(notification_id)
+        except ValueError:
+            logger.warning(
+                "Invalid notification ID format",
+                notification_id=notification_id,
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid notification ID format",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get include_message query parameter (default: false)
+        include_message = (
+            request.query_params.get("include_message", "false").lower() == "true"
+        )
+
+        # Get notification (service handles authorization)
+        try:
+            notification = notification_service.get_notification_for_user(
+                notification_id=notification_id_uuid,
+                include_message=include_message,
+            )
+
+            # Serialize notification
+            notification_detail = NotificationDetail.model_validate(notification)
+
+            # Exclude message if not requested
+            if include_message:
+                response_data = notification_detail.model_dump()
+            else:
+                response_data = notification_detail.model_dump(exclude={"message"})
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (Http404, PermissionDenied, etc.)
+            raise
+
+    def delete(self, request, notification_id):
+        """Delete notification by ID.
+
+        Authorization:
+        - Admin scope: Can delete any notification
+        - User scope: Can only delete their own notifications
+
+        Cannot delete notifications in 'queued' status (returns 409).
+
+        Args:
+            request: HTTP request
+            notification_id: UUID of the notification
+
+        Returns:
+            Response with 204 No Content on success
+        """
+        logger.info(
+            "Notification deletion request received",
+            notification_id=notification_id,
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Validate UUID format
+        try:
+            notification_id_uuid = UUID(notification_id)
+        except ValueError:
+            logger.warning(
+                "Invalid notification ID format for deletion",
+                notification_id=notification_id,
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid notification ID format",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Delete notification (service handles authorization and status checks)
+        try:
+            notification_service.delete_notification(
+                notification_id=notification_id_uuid
+            )
+
+            logger.info(
+                "Notification deleted successfully",
+                notification_id=notification_id,
+            )
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (Http404, PermissionDenied, ConflictError, etc.)
             raise

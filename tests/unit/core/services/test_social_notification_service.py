@@ -68,6 +68,7 @@ class TestSocialNotificationService(TestCase):
             updated_at=datetime.now(UTC),
         )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -76,8 +77,10 @@ class TestSocialNotificationService(TestCase):
         mock_notification_service,
         mock_recipe_client,
         mock_user_client,
+        mock_require_current_user,
     ):
         """Test sending notifications with admin scope succeeds."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_user_client.get_user.side_effect = [
             self.mock_follower,
@@ -93,7 +96,6 @@ class TestSocialNotificationService(TestCase):
         # Execute
         response = self.service.send_new_follower_notifications(
             request=self.new_follower_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions
@@ -120,23 +122,32 @@ class TestSocialNotificationService(TestCase):
         # Verify notification service called
         mock_notification_service.create_notification.assert_called_once()
 
-    def test_send_notifications_without_admin_scope_raises_permission_denied(self):
+    @patch("core.services.social_notification_service.require_current_user")
+    def test_send_notifications_without_admin_scope_raises_permission_denied(
+        self,
+        mock_require_current_user,
+    ):
         """Test sending notifications without admin scope raises PermissionDenied."""
+        # Setup: Return a user without admin scope
+        mock_require_current_user.return_value = self.regular_user
+
         # Execute and assert
         with self.assertRaises(PermissionDenied) as exc_info:
             self.service.send_new_follower_notifications(
                 request=self.new_follower_request,
-                authenticated_user=self.regular_user,
             )
 
         self.assertIn("notification:admin", str(exc_info.exception.detail))
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.user_client")
     def test_send_notifications_follower_not_found(
         self,
         mock_user_client,
+        mock_require_current_user,
     ):
         """Test follower not found raises UserNotFoundError."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mock to raise UserNotFoundError
         mock_user_client.get_user.side_effect = UserNotFoundError(
             user_id=str(self.follower_id)
@@ -146,17 +157,19 @@ class TestSocialNotificationService(TestCase):
         with self.assertRaises(UserNotFoundError):
             self.service.send_new_follower_notifications(
                 request=self.new_follower_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     def test_send_notifications_recipient_not_found(
         self,
         mock_recipe_client,
         mock_user_client,
+        mock_require_current_user,
     ):
         """Test recipient not found raises UserNotFoundError."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks - follower exists, relationship valid, recipient doesn't
         mock_user_client.get_user.side_effect = [
             self.mock_follower,  # First call for follower
@@ -169,15 +182,17 @@ class TestSocialNotificationService(TestCase):
         with self.assertRaises(UserNotFoundError):
             self.service.send_new_follower_notifications(
                 request=self.new_follower_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.user_client")
     def test_send_notifications_invalid_relationship_raises_permission_denied(
         self,
         mock_user_client,
+        mock_require_current_user,
     ):
         """Test invalid follower relationship raises PermissionDenied."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_user_client.get_user.return_value = self.mock_follower
         mock_user_client.validate_follower_relationship.return_value = False
@@ -186,11 +201,11 @@ class TestSocialNotificationService(TestCase):
         with self.assertRaises(PermissionDenied) as exc_info:
             self.service.send_new_follower_notifications(
                 request=self.new_follower_request,
-                authenticated_user=self.admin_user,
             )
 
         self.assertIn("does not exist", str(exc_info.exception.detail))
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -201,8 +216,10 @@ class TestSocialNotificationService(TestCase):
         mock_notification_service,
         mock_recipe_client,
         mock_user_client,
+        mock_require_current_user,
     ):
         """Test email template is rendered with correct context."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_user_client.get_user.side_effect = [
             self.mock_follower,
@@ -219,7 +236,6 @@ class TestSocialNotificationService(TestCase):
         # Execute
         self.service.send_new_follower_notifications(
             request=self.new_follower_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions - verify template was rendered with correct context
@@ -236,6 +252,7 @@ class TestSocialNotificationService(TestCase):
         self.assertIn("/users/newfollower", context["profile_url"])
         self.assertIn("/users/newfollower/recipes", context["recipes_url"])
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -244,8 +261,10 @@ class TestSocialNotificationService(TestCase):
         mock_notification_service,
         mock_recipe_client,
         mock_user_client,
+        mock_require_current_user,
     ):
         """Test notification is created with correct metadata."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_user_client.get_user.side_effect = [
             self.mock_follower,
@@ -261,7 +280,6 @@ class TestSocialNotificationService(TestCase):
         # Execute
         self.service.send_new_follower_notifications(
             request=self.new_follower_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions - verify notification was created with correct metadata
@@ -280,6 +298,7 @@ class TestSocialNotificationService(TestCase):
         self.assertEqual(metadata["follower_id"], str(self.follower_id))
         self.assertEqual(metadata["recipient_id"], str(self.recipient_id))
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -288,8 +307,10 @@ class TestSocialNotificationService(TestCase):
         mock_notification_service,
         mock_recipe_client,
         mock_user_client,
+        mock_require_current_user,
     ):
         """Test notification is sent even when follower has zero recipes."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_user_client.get_user.side_effect = [
             self.mock_follower,
@@ -305,13 +326,13 @@ class TestSocialNotificationService(TestCase):
         # Execute
         response = self.service.send_new_follower_notifications(
             request=self.new_follower_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions
         self.assertEqual(response.queued_count, 1)
         mock_notification_service.create_notification.assert_called_once()
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -320,8 +341,10 @@ class TestSocialNotificationService(TestCase):
         mock_notification_service,
         mock_recipe_client,
         mock_user_client,
+        mock_require_current_user,
     ):
         """Test sending notifications to multiple recipients."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup request with multiple recipients
         recipient_ids = [uuid4(), uuid4()]
         request = NewFollowerRequest(
@@ -345,7 +368,6 @@ class TestSocialNotificationService(TestCase):
         # Execute
         response = self.service.send_new_follower_notifications(
             request=request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions
@@ -424,6 +446,7 @@ class TestMentionNotifications(TestCase):
             updated_at=datetime.now(UTC),
         )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -432,8 +455,10 @@ class TestMentionNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test sending mention notifications with admin scope succeeds."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_user_client.get_user.side_effect = [
@@ -449,7 +474,6 @@ class TestMentionNotifications(TestCase):
         # Execute
         response = self.service.send_mention_notifications(
             request=self.mention_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions
@@ -471,25 +495,30 @@ class TestMentionNotifications(TestCase):
         # Verify notification service called
         mock_notification_service.create_notification.assert_called_once()
 
+    @patch("core.services.social_notification_service.require_current_user")
     def test_send_mention_notifications_without_admin_scope_raises_permission_denied(
         self,
+        mock_require_current_user,
     ):
         """Test mention notifications without admin scope raise PermissionDenied."""
+        mock_require_current_user.return_value = self.regular_user
         # Execute and assert
         with self.assertRaises(PermissionDenied) as exc_info:
             self.service.send_mention_notifications(
                 request=self.mention_request,
-                authenticated_user=self.regular_user,
             )
 
         self.assertIn("notification:admin", str(exc_info.exception.detail))
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     def test_send_mention_notifications_comment_not_found(
         self,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test comment not found raises CommentNotFoundError."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mock to raise CommentNotFoundError
         mock_recipe_client.get_comment.side_effect = CommentNotFoundError(
             comment_id=str(self.comment_id)
@@ -499,17 +528,19 @@ class TestMentionNotifications(TestCase):
         with self.assertRaises(CommentNotFoundError):
             self.service.send_mention_notifications(
                 request=self.mention_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     def test_send_mention_notifications_commenter_not_found(
         self,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test commenter not found raises UserNotFoundError."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks - comment exists but commenter doesn't
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_user_client.get_user.side_effect = UserNotFoundError(
@@ -520,17 +551,19 @@ class TestMentionNotifications(TestCase):
         with self.assertRaises(UserNotFoundError):
             self.service.send_mention_notifications(
                 request=self.mention_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     def test_send_mention_notifications_recipe_not_found(
         self,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test recipe not found raises RecipeNotFoundError."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks - comment and commenter exist but recipe doesn't
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_user_client.get_user.return_value = self.mock_commenter
@@ -542,17 +575,19 @@ class TestMentionNotifications(TestCase):
         with self.assertRaises(RecipeNotFoundError):
             self.service.send_mention_notifications(
                 request=self.mention_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     def test_send_mention_notifications_recipient_not_found(
         self,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test recipient not found raises UserNotFoundError."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks - everything exists except recipient
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_user_client.get_user.side_effect = [
@@ -565,9 +600,9 @@ class TestMentionNotifications(TestCase):
         with self.assertRaises(UserNotFoundError):
             self.service.send_mention_notifications(
                 request=self.mention_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -578,8 +613,10 @@ class TestMentionNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test email template is rendered with correct context."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_user_client.get_user.side_effect = [
@@ -596,7 +633,6 @@ class TestMentionNotifications(TestCase):
         # Execute
         self.service.send_mention_notifications(
             request=self.mention_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions - verify template was rendered with correct context
@@ -617,6 +653,7 @@ class TestMentionNotifications(TestCase):
             context["comment_url"],
         )
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -625,8 +662,10 @@ class TestMentionNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test long comment preview is truncated at 150 characters."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks with long comment
         long_comment = CommentDto(
             comment_id=self.comment_id,
@@ -649,13 +688,13 @@ class TestMentionNotifications(TestCase):
         # Execute
         self.service.send_mention_notifications(
             request=self.mention_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions - verify comment was truncated
         # We can't directly access the preview, but we can verify the service was called
         mock_notification_service.create_notification.assert_called_once()
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -664,8 +703,10 @@ class TestMentionNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test notification is created with correct metadata."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_user_client.get_user.side_effect = [
@@ -681,7 +722,6 @@ class TestMentionNotifications(TestCase):
         # Execute
         self.service.send_mention_notifications(
             request=self.mention_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions - verify notification was created with correct metadata
@@ -702,6 +742,7 @@ class TestMentionNotifications(TestCase):
         self.assertEqual(metadata["commenter_id"], str(self.commenter_id))
         self.assertEqual(metadata["recipe_id"], str(self.recipe_id))
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -710,8 +751,10 @@ class TestMentionNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test sending mention notifications to multiple recipients."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup request with multiple recipients
         recipient_ids = [uuid4(), uuid4()]
         request = MentionRequest(
@@ -735,7 +778,6 @@ class TestMentionNotifications(TestCase):
         # Execute
         response = self.service.send_mention_notifications(
             request=request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions
@@ -745,6 +787,7 @@ class TestMentionNotifications(TestCase):
         # Verify notification created for each recipient
         self.assertEqual(mock_notification_service.create_notification.call_count, 2)
 
+    @patch("core.services.social_notification_service.require_current_user")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
@@ -753,8 +796,10 @@ class TestMentionNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test notification URLs are constructed correctly."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_user_client.get_user.side_effect = [
@@ -770,7 +815,6 @@ class TestMentionNotifications(TestCase):
         # Execute
         self.service.send_mention_notifications(
             request=self.mention_request,
-            authenticated_user=self.admin_user,
         )
 
         # We can't directly test URL construction, but we verified it in

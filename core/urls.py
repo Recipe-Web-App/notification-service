@@ -7,6 +7,7 @@ from .views import (
     LivenessCheckView,
     MentionView,
     NewFollowerView,
+    NotificationDetailView,
     PasswordResetView,
     ReadinessCheckView,
     RecipeCommentedView,
@@ -49,5 +50,11 @@ urlpatterns = [
         "notifications/password-reset",
         PasswordResetView.as_view(),
         name="password-reset",
+    ),
+    # Notification management endpoints
+    path(
+        "notifications/<str:notification_id>",
+        NotificationDetailView.as_view(),
+        name="notification-detail",
     ),
 ]

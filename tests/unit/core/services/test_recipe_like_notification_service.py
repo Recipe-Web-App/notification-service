@@ -62,6 +62,7 @@ class TestRecipeLikedNotifications(TestCase):
             updated_at=datetime.now(UTC),
         )
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -70,8 +71,10 @@ class TestRecipeLikedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test sending notifications with admin scope bypasses follower check."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
@@ -83,7 +86,6 @@ class TestRecipeLikedNotifications(TestCase):
         # Execute
         response = self.service.send_recipe_liked_notifications(
             request=self.recipe_liked_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions
@@ -102,6 +104,7 @@ class TestRecipeLikedNotifications(TestCase):
         # Verify notification service called for each recipient
         self.assertEqual(mock_notification_service.create_notification.call_count, 2)
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -110,8 +113,10 @@ class TestRecipeLikedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test sending notifications with user scope validates liker follows author."""
+        mock_require_current_user.return_value = self.regular_user
         # Setup mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
@@ -125,7 +130,6 @@ class TestRecipeLikedNotifications(TestCase):
         # Execute
         response = self.service.send_recipe_liked_notifications(
             request=self.recipe_liked_request,
-            authenticated_user=self.regular_user,
         )
 
         # Assertions
@@ -135,12 +139,15 @@ class TestRecipeLikedNotifications(TestCase):
         # Verify follower validation was called once (for liker)
         self.assertEqual(mock_user_client.validate_follower_relationship.call_count, 1)
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     def test_send_notifications_recipe_not_found(
         self,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test recipe not found raises RecipeNotFoundError."""
+        mock_require_current_user.return_value = self.regular_user
         # Setup mock to raise RecipeNotFoundError
         mock_recipe_client.get_recipe.side_effect = RecipeNotFoundError(
             recipe_id=int(self.recipe_liked_request.recipe_id)
@@ -150,17 +157,19 @@ class TestRecipeLikedNotifications(TestCase):
         with self.assertRaises(RecipeNotFoundError):
             self.service.send_recipe_liked_notifications(
                 request=self.recipe_liked_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     def test_send_notifications_invalid_follower_relationship(
         self,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test liker not following author raises PermissionDenied."""
+        mock_require_current_user.return_value = self.regular_user
         # Setup mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         # Liker is not a follower of the author
@@ -170,11 +179,11 @@ class TestRecipeLikedNotifications(TestCase):
         with self.assertRaises(PermissionDenied) as exc_info:
             self.service.send_recipe_liked_notifications(
                 request=self.recipe_liked_request,
-                authenticated_user=self.regular_user,
             )
 
         self.assertIn("not a follower", str(exc_info.exception.detail).lower())
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -185,8 +194,10 @@ class TestRecipeLikedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test email template is rendered with correct context."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
@@ -199,7 +210,6 @@ class TestRecipeLikedNotifications(TestCase):
         # Execute
         self.service.send_recipe_liked_notifications(
             request=self.recipe_liked_request,
-            authenticated_user=self.admin_user,
         )
 
         # Verify template was rendered
@@ -211,6 +221,7 @@ class TestRecipeLikedNotifications(TestCase):
         self.assertIn("recipe_title", first_call[0][1])
         self.assertIn("recipe_url", first_call[0][1])
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -219,8 +230,10 @@ class TestRecipeLikedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test notifications include correct metadata."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
@@ -232,7 +245,6 @@ class TestRecipeLikedNotifications(TestCase):
         # Execute
         self.service.send_recipe_liked_notifications(
             request=self.recipe_liked_request,
-            authenticated_user=self.admin_user,
         )
 
         # Verify metadata was included in notification creation
@@ -245,6 +257,7 @@ class TestRecipeLikedNotifications(TestCase):
         )
         self.assertEqual(metadata["liker_id"], str(self.recipe_liked_request.liker_id))
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -253,8 +266,10 @@ class TestRecipeLikedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test notifications are queued for async processing."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
@@ -266,13 +281,13 @@ class TestRecipeLikedNotifications(TestCase):
         # Execute
         self.service.send_recipe_liked_notifications(
             request=self.recipe_liked_request,
-            authenticated_user=self.admin_user,
         )
 
         # Verify queue flag was set to True
         call_args = mock_notification_service.create_notification.call_args
         self.assertIs(call_args[1]["auto_queue"], True)
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -281,8 +296,10 @@ class TestRecipeLikedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test handling multiple recipients correctly."""
+        mock_require_current_user.return_value = self.admin_user
         # Create request with 3 recipients
         request = RecipeLikedRequest(
             recipient_ids=[uuid4(), uuid4(), uuid4()],
@@ -301,7 +318,6 @@ class TestRecipeLikedNotifications(TestCase):
         # Execute
         response = self.service.send_recipe_liked_notifications(
             request=request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions

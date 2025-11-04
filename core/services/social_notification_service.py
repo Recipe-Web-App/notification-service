@@ -5,7 +5,7 @@ from django.template.loader import render_to_string
 import structlog
 from rest_framework.exceptions import PermissionDenied
 
-from core.auth.oauth2 import OAuth2User
+from core.auth.context import require_current_user
 from core.config.downstream_urls import FRONTEND_BASE_URL
 from core.exceptions import CommentNotFoundError, RecipeNotFoundError, UserNotFoundError
 from core.schemas.notification import (
@@ -29,13 +29,11 @@ class SocialNotificationService:
     def send_new_follower_notifications(
         self,
         request: NewFollowerRequest,
-        authenticated_user: OAuth2User,
     ) -> BatchNotificationResponse:
         """Send notifications when a user gains a new follower.
 
         Args:
             request: New follower request with recipient_ids and follower_id
-            authenticated_user: Authenticated OAuth2 user
 
         Returns:
             BatchNotificationResponse with created notifications
@@ -45,6 +43,9 @@ class SocialNotificationService:
             PermissionDenied: If user lacks admin scope or relationship
                 does not exist
         """
+        # Get authenticated user from security context
+        authenticated_user = require_current_user()
+
         logger.info(
             "Processing new follower notifications",
             follower_id=str(request.follower_id),
@@ -178,13 +179,11 @@ class SocialNotificationService:
     def send_mention_notifications(
         self,
         request: MentionRequest,
-        authenticated_user: OAuth2User,
     ) -> BatchNotificationResponse:
         """Send notifications when users are mentioned in comments.
 
         Args:
             request: Mention request with recipient_ids and comment_id
-            authenticated_user: Authenticated OAuth2 user
 
         Returns:
             BatchNotificationResponse with created notifications
@@ -195,6 +194,9 @@ class SocialNotificationService:
             UserNotFoundError: If commenter or recipient user does not exist
             PermissionDenied: If user lacks admin scope
         """
+        # Get authenticated user from security context
+        authenticated_user = require_current_user()
+
         logger.info(
             "Processing mention notifications",
             comment_id=str(request.comment_id),

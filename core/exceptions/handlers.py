@@ -16,6 +16,7 @@ from rest_framework.views import exception_handler
 
 from core.exceptions.downstream_exceptions import (
     CommentNotFoundError,
+    ConflictError,
     RecipeNotFoundError,
     UserNotFoundError,
 )
@@ -59,6 +60,15 @@ def custom_exception_handler(
                 request_id=request_id,
             )
             response = Response(response_data, status=status.HTTP_404_NOT_FOUND)
+        elif isinstance(exc, ConflictError):
+            response_data = {
+                "error": "conflict",
+                "message": str(exc),
+                "detail": exc.detail if hasattr(exc, "detail") else None,
+                "request_id": request_id,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+            response = Response(response_data, status=status.HTTP_409_CONFLICT)
         elif isinstance(exc, Http404):
             response_data = _create_error_response(
                 status_code=status.HTTP_404_NOT_FOUND,

@@ -86,6 +86,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "core.middleware.rate_limit.RateLimitMiddleware",  # Rate limit after ID
     "core.middleware.security_headers.SecurityHeadersMiddleware",  # Security
+    "core.middleware.security_context.SecurityContextMiddleware",  # User storage
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 

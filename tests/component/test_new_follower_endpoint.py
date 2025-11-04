@@ -55,6 +55,7 @@ class TestNewFollowerEndpoint(TestCase):
             updated_at=datetime.now(UTC),
         )
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
@@ -65,6 +66,7 @@ class TestNewFollowerEndpoint(TestCase):
         mock_recipe_client,
         mock_user_client,
         mock_authenticate,
+        mock_get_current_user,
     ):
         """Test POST with admin scope returns HTTP 202."""
         # Setup authentication
@@ -74,6 +76,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup service mocks
         mock_user_client.get_user.side_effect = [
@@ -102,8 +105,11 @@ class TestNewFollowerEndpoint(TestCase):
         self.assertEqual(len(data["notifications"]), 1)
         self.assertEqual(data["message"], "Notifications queued successfully")
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_without_authentication_returns_401(self, mock_authenticate):
+    def test_post_without_authentication_returns_401(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST without authentication returns HTTP 401."""
         # Setup authentication to fail
         mock_authenticate.return_value = None
@@ -118,8 +124,11 @@ class TestNewFollowerEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 401)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_without_admin_scope_returns_403(self, mock_authenticate):
+    def test_post_without_admin_scope_returns_403(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST without admin scope returns HTTP 403."""
         # Setup authentication with wrong scope
         user_without_admin = OAuth2User(
@@ -128,6 +137,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:user"],
         )
         mock_authenticate.return_value = (user_without_admin, None)
+        mock_get_current_user.return_value = user_without_admin
 
         # Execute
         response = self.client.post(
@@ -141,12 +151,11 @@ class TestNewFollowerEndpoint(TestCase):
         data = response.json()
         self.assertIn("notification:admin", data["detail"])
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.social_notification_service.user_client")
     def test_post_with_nonexistent_relationship_returns_403(
-        self,
-        mock_user_client,
-        mock_authenticate,
+        self, mock_user_client, mock_authenticate, mock_get_current_user
     ):
         """Test POST when follower relationship doesn't exist returns HTTP 403."""
         # Setup authentication
@@ -156,6 +165,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup service mocks - follower exists but relationship doesn't
         mock_user_client.get_user.return_value = self.mock_follower
@@ -173,8 +183,11 @@ class TestNewFollowerEndpoint(TestCase):
         data = response.json()
         self.assertIn("does not exist", data["detail"])
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_with_invalid_payload_returns_400(self, mock_authenticate):
+    def test_post_with_invalid_payload_returns_400(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST with invalid payload returns HTTP 400."""
         # Setup authentication
         admin_user = OAuth2User(
@@ -183,6 +196,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Invalid payload - missing required field
         invalid_data = {
@@ -203,8 +217,11 @@ class TestNewFollowerEndpoint(TestCase):
         self.assertEqual(data["error"], "bad_request")
         self.assertIn("errors", data)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_with_empty_recipient_list_returns_400(self, mock_authenticate):
+    def test_post_with_empty_recipient_list_returns_400(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST with empty recipient list returns HTTP 400."""
         # Setup authentication
         admin_user = OAuth2User(
@@ -213,6 +230,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Invalid payload - empty recipient_ids
         invalid_data = {
@@ -230,8 +248,11 @@ class TestNewFollowerEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 400)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_with_too_many_recipients_returns_400(self, mock_authenticate):
+    def test_post_with_too_many_recipients_returns_400(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST with >100 recipients returns HTTP 400."""
         # Setup authentication
         admin_user = OAuth2User(
@@ -240,6 +261,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Invalid payload - too many recipients
         invalid_data = {
@@ -257,12 +279,11 @@ class TestNewFollowerEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 400)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.social_notification_service.user_client")
     def test_post_with_nonexistent_follower_returns_404(
-        self,
-        mock_user_client,
-        mock_authenticate,
+        self, mock_user_client, mock_authenticate, mock_get_current_user
     ):
         """Test POST with nonexistent follower returns HTTP 404."""
         # Setup authentication
@@ -272,6 +293,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup user client to raise UserNotFoundError
         mock_user_client.get_user.side_effect = UserNotFoundError(
@@ -288,6 +310,7 @@ class TestNewFollowerEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 404)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
@@ -296,6 +319,7 @@ class TestNewFollowerEndpoint(TestCase):
         mock_recipe_client,
         mock_user_client,
         mock_authenticate,
+        mock_get_current_user,
     ):
         """Test POST with nonexistent recipient returns HTTP 404."""
         # Setup authentication
@@ -305,6 +329,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup service mocks - follower exists, relationship valid,
         # but recipient doesn't exist
@@ -325,6 +350,7 @@ class TestNewFollowerEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 404)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
@@ -335,6 +361,7 @@ class TestNewFollowerEndpoint(TestCase):
         mock_recipe_client,
         mock_user_client,
         mock_authenticate,
+        mock_get_current_user,
     ):
         """Test response contains notification IDs for each recipient."""
         # Setup authentication
@@ -344,6 +371,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup service mocks
         mock_user_client.get_user.side_effect = [
@@ -378,6 +406,7 @@ class TestNewFollowerEndpoint(TestCase):
         self.assertEqual(notification["notification_id"], str(notification_id))
         self.assertEqual(notification["recipient_id"], str(self.recipient_ids[0]))
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
@@ -388,6 +417,7 @@ class TestNewFollowerEndpoint(TestCase):
         mock_recipe_client,
         mock_user_client,
         mock_authenticate,
+        mock_get_current_user,
     ):
         """Test that recipe count is fetched from recipe service."""
         # Setup authentication
@@ -397,6 +427,7 @@ class TestNewFollowerEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup service mocks
         mock_user_client.get_user.side_effect = [
