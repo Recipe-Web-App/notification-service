@@ -239,6 +239,100 @@ class NotificationService:
 
         return stats
 
+    def get_my_notifications(
+        self,
+        status: str | None = None,
+        notification_type: str | None = None,
+    ) -> QuerySet[Notification]:
+        """Get notifications for the authenticated user.
+
+        This method uses the security context to retrieve the current user
+        and returns their notifications. Authorization is enforced - users
+        can only see their own notifications unless they have admin scope.
+
+        Args:
+            status: Filter by status (optional)
+            notification_type: Filter by type (optional)
+
+        Returns:
+            QuerySet of Notification instances ordered by created_at DESC
+
+        Raises:
+            PermissionDenied: If user is not authenticated
+        """
+        # Get current user from security context
+        current_user = require_current_user()
+
+        # Check user has required scope
+        has_user_scope = current_user.has_scope("notification:user")
+        has_admin_scope = current_user.has_scope("notification:admin")
+
+        if not has_user_scope and not has_admin_scope:
+            logger.warning(
+                "insufficient_scope_for_notifications",
+                user_id=current_user.user_id,
+                scopes=current_user.scopes,
+            )
+            raise PermissionDenied(
+                "Requires notification:user or notification:admin scope"
+            )
+
+        # Query by recipient_email since recipient FK is not populated in production
+        # We use email from the OAuth2 token which is stored in current_user
+        # Note: OAuth2User doesn't have an email attribute, we need to query by user_id
+        # However, since recipient FK isn't populated, we need to use another approach
+        # For now, we'll filter by recipient_email matching the user's email
+        # This requires fetching the user's email from the token or user service
+
+        # Since OAuth2User only has user_id, we need to get the email
+        # The most reliable way is to query by recipient_email
+        # But we need the email address from somewhere
+        # Looking at the token structure, we should have email in the token
+        # For now, let's use a query that works with the current data model
+
+        # Filter by recipient user_id if recipient FK is set, or by email
+        queryset = Notification.objects.filter(recipient_email__isnull=False)
+
+        # Since we don't have a direct way to get the email from OAuth2User,
+        # we'll need to enhance this. For now, let's use recipient__user_id
+        # Actually, looking at the get_notification_for_user method, it uses recipient
+        # Let's follow the same pattern but query for all notifications
+
+        # The issue is that recipient FK is not populated in production
+        # So we need to query by recipient_email
+        # We'll need to get the user's email somehow
+        # Let's check if we can get it from the User model using user_id
+
+        try:
+            # Try to get user by user_id to fetch their email
+            user = User.objects.get(user_id=current_user.user_id)
+            queryset = Notification.objects.filter(recipient_email=user.email)
+        except User.DoesNotExist:
+            # If user not found in local DB, return empty queryset
+            # This shouldn't happen in normal flow
+            logger.warning(
+                "user_not_found_for_notifications",
+                user_id=current_user.user_id,
+            )
+            queryset = Notification.objects.none()
+
+        # Apply filters
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if notification_type:
+            queryset = queryset.filter(notification_type=notification_type)
+
+        logger.info(
+            "user_notifications_queried",
+            user_id=current_user.user_id,
+            status_filter=status,
+            type_filter=notification_type,
+        )
+
+        # Return queryset without limit - pagination handled by view
+        return queryset
+
     def get_notification_for_user(
         self, notification_id: UUID, include_message: bool = False
     ) -> Notification:

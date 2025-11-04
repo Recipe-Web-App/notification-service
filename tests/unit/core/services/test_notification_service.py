@@ -1,9 +1,14 @@
 """Tests for NotificationService."""
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock, patch
+from uuid import uuid4
+
+from django.core.exceptions import PermissionDenied
 
 import pytest
 
+from core.auth.oauth2 import OAuth2User
 from core.models.notification import Notification
 from core.models.user import User
 from core.services.notification_service import NotificationService
@@ -215,3 +220,141 @@ class TestNotificationService:
         assert stats["total"] == 2
         assert stats["pending"] == 1
         assert stats["sent"] == 1
+
+    def test_get_my_notifications_success(self, notification_service, user):
+        """Test getting notifications for authenticated user."""
+        # Create notifications for the user
+        Notification.objects.create(
+            recipient_email=user.email,
+            subject="Test 1",
+            message="Message 1",
+            status=Notification.SENT,
+        )
+        Notification.objects.create(
+            recipient_email=user.email,
+            subject="Test 2",
+            message="Message 2",
+            status=Notification.PENDING,
+        )
+
+        mock_user = OAuth2User(
+            user_id=str(user.user_id),
+            client_id="test-client",
+            scopes=["notification:user"],
+        )
+
+        with patch("core.auth.context.require_current_user", return_value=mock_user):
+            queryset = notification_service.get_my_notifications()
+
+            # Should return all notifications for the user
+            assert queryset.count() == 2
+
+    def test_get_my_notifications_with_status_filter(self, notification_service, user):
+        """Test getting notifications filtered by status."""
+        # Create notifications with different statuses
+        Notification.objects.create(
+            recipient_email=user.email,
+            subject="Sent Notification",
+            message="Message",
+            status=Notification.SENT,
+        )
+        Notification.objects.create(
+            recipient_email=user.email,
+            subject="Pending Notification",
+            message="Message",
+            status=Notification.PENDING,
+        )
+
+        mock_user = OAuth2User(
+            user_id=str(user.user_id),
+            client_id="test-client",
+            scopes=["notification:user"],
+        )
+
+        with patch("core.auth.context.require_current_user", return_value=mock_user):
+            queryset = notification_service.get_my_notifications(
+                status=Notification.SENT
+            )
+
+            # Should return only sent notifications
+            assert queryset.count() == 1
+            assert queryset.first().status == Notification.SENT
+
+    def test_get_my_notifications_with_type_filter(self, notification_service, user):
+        """Test getting notifications filtered by type."""
+        # Create notifications
+        Notification.objects.create(
+            recipient_email=user.email,
+            subject="Email Notification",
+            message="Message",
+            notification_type=Notification.EMAIL,
+        )
+
+        mock_user = OAuth2User(
+            user_id=str(user.user_id),
+            client_id="test-client",
+            scopes=["notification:user"],
+        )
+
+        with patch("core.auth.context.require_current_user", return_value=mock_user):
+            queryset = notification_service.get_my_notifications(
+                notification_type=Notification.EMAIL
+            )
+
+            # Should return email notifications
+            assert queryset.count() == 1
+            assert queryset.first().notification_type == Notification.EMAIL
+
+    def test_get_my_notifications_requires_scope(self, notification_service, user):
+        """Test get_my_notifications requires proper scope."""
+        # Mock user without required scope
+        mock_user = OAuth2User(
+            user_id=str(user.user_id),
+            client_id="test-client",
+            scopes=["some:other:scope"],
+        )
+
+        with patch(
+            "core.auth.context.require_current_user", return_value=mock_user
+        ) and pytest.raises(PermissionDenied):
+            notification_service.get_my_notifications()
+
+    def test_get_my_notifications_user_not_found(self, notification_service):
+        """Test get_my_notifications when user not found in local DB."""
+        # Mock user that doesn't exist in DB
+        mock_user = OAuth2User(
+            user_id=str(uuid4()),
+            client_id="test-client",
+            scopes=["notification:user"],
+        )
+
+        with patch("core.auth.context.require_current_user", return_value=mock_user):
+            queryset = notification_service.get_my_notifications()
+
+            # Should return empty queryset
+            assert queryset.count() == 0
+
+    def test_get_my_notifications_ordering(self, notification_service, user):
+        """Test notifications are ordered by created_at DESC."""
+        # Create notifications with different timestamps
+        old_notif = Notification.objects.create(
+            recipient_email=user.email,
+            subject="Old Notification",
+            message="Message",
+        )
+        old_notif.created_at = datetime.now(UTC) - timedelta(days=2)
+        old_notif.save()
+
+        mock_user = OAuth2User(
+            user_id=str(user.user_id),
+            client_id="test-client",
+            scopes=["notification:user"],
+        )
+
+        with patch("core.auth.context.require_current_user", return_value=mock_user):
+            queryset = notification_service.get_my_notifications()
+
+            # Should be ordered newest first
+            notifications_list = list(queryset)
+            assert notifications_list[0].subject == "New Notification"
+            assert notifications_list[1].subject == "Old Notification"

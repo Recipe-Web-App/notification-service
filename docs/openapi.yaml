@@ -538,6 +538,9 @@ paths:
       description: |
         Retrieve paginated list of notifications for the authenticated user.
         Returns notifications ordered by creation date (newest first).
+
+        **Message Field**: By default, the `message` field is excluded from the response to reduce payload size.
+        Use the `include_message` query parameter to include the full message body.
       operationId: getMyNotifications
       security:
         - OAuth2: ["notification:user", "notification:admin"]
@@ -563,6 +566,18 @@ paths:
             type: string
             enum: [pending, queued, sent, failed]
           description: Filter by notification status
+        - name: notification_type
+          in: query
+          schema:
+            type: string
+            enum: [email]
+          description: Filter by notification type
+        - name: include_message
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include the full message body in the response (default is false to reduce payload size)
       responses:
         '200':
           description: User notifications retrieved successfully
@@ -570,8 +585,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationListResponse'
+              example:
+                results:
+                  - notification_id: 770e8400-e29b-41d4-a716-446655440111
+                    recipient_id: 550e8400-e29b-41d4-a716-446655440001
+                    recipient_email: john.doe@example.com
+                    subject: "New Recipe: Grandma's Chocolate Chip Cookies"
+                    notification_type: email
+                    status: sent
+                    created_at: "2025-10-28T14:30:00Z"
+                    queued_at: "2025-10-28T14:30:01Z"
+                    sent_at: "2025-10-28T14:30:15Z"
+                    retry_count: 0
+                    max_retries: 3
+                    error_message: ""
+                    metadata:
+                      template_type: recipe_published
+                      recipe_id: 660e8400-e29b-41d4-a716-446655440099
+                  - notification_id: 770e8400-e29b-41d4-a716-446655440112
+                    recipient_id: 550e8400-e29b-41d4-a716-446655440001
+                    recipient_email: john.doe@example.com
+                    subject: "Someone liked your recipe!"
+                    notification_type: email
+                    status: sent
+                    created_at: "2025-10-27T10:15:00Z"
+                    queued_at: "2025-10-27T10:15:01Z"
+                    sent_at: "2025-10-27T10:15:10Z"
+                    retry_count: 0
+                    max_retries: 3
+                    error_message: ""
+                    metadata:
+                      template_type: recipe_liked
+                      recipe_id: 660e8400-e29b-41d4-a716-446655440099
+                count: 42
+                next: "http://localhost:8000/api/v1/notification/users/me/notifications?page=2"
+                previous: null
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "bad_request"
+                message: "Invalid status filter"
+                detail: "Status must be one of: pending, queued, sent, failed"
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
