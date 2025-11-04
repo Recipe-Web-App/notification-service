@@ -5,7 +5,7 @@ from django.template.loader import render_to_string
 import structlog
 from rest_framework.exceptions import PermissionDenied
 
-from core.auth.oauth2 import OAuth2User
+from core.auth.context import require_current_user
 from core.config.downstream_urls import FRONTEND_BASE_URL
 from core.exceptions import UserNotFoundError
 from core.schemas.notification import (
@@ -25,14 +25,12 @@ class SystemNotificationService:
     def send_password_reset_notifications(
         self,
         request: PasswordResetRequest,
-        authenticated_user: OAuth2User,
     ) -> BatchNotificationResponse:
         """Send password reset notification to user.
 
         Args:
             request: Password reset request with recipient_id, reset_token,
                 and expiry_hours
-            authenticated_user: Authenticated OAuth2 user
 
         Returns:
             BatchNotificationResponse with created notification
@@ -41,6 +39,9 @@ class SystemNotificationService:
             UserNotFoundError: If recipient user does not exist
             PermissionDenied: If user lacks admin scope
         """
+        # Get authenticated user from security context
+        authenticated_user = require_current_user()
+
         logger.info(
             "Processing password reset notification",
             recipient_count=len(request.recipient_ids),

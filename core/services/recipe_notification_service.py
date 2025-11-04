@@ -5,7 +5,7 @@ from django.template.loader import render_to_string
 import structlog
 from rest_framework.exceptions import PermissionDenied
 
-from core.auth.oauth2 import OAuth2User
+from core.auth.context import require_current_user
 from core.config.downstream_urls import FRONTEND_BASE_URL
 from core.exceptions import CommentNotFoundError, RecipeNotFoundError
 from core.schemas.notification import (
@@ -30,13 +30,11 @@ class RecipeNotificationService:
     def send_recipe_published_notifications(
         self,
         request: RecipePublishedRequest,
-        authenticated_user: OAuth2User,
     ) -> BatchNotificationResponse:
         """Send notifications when a recipe is published.
 
         Args:
             request: Recipe published request with recipient_ids and recipe_id
-            authenticated_user: Authenticated OAuth2 user
 
         Returns:
             BatchNotificationResponse with created notifications
@@ -45,6 +43,9 @@ class RecipeNotificationService:
             RecipeNotFoundError: If recipe does not exist
             PermissionDenied: If user lacks permission to notify recipients
         """
+        # Get authenticated user from security context
+        authenticated_user = require_current_user()
+
         logger.info(
             "Processing recipe published notifications",
             recipe_id=str(request.recipe_id),
@@ -167,14 +168,12 @@ class RecipeNotificationService:
     def send_recipe_liked_notifications(
         self,
         request: RecipeLikedRequest,
-        authenticated_user: OAuth2User,
     ) -> BatchNotificationResponse:
         """Send notifications when a recipe is liked.
 
         Args:
             request: Recipe liked request with recipient_ids, recipe_id,
                 and liker_id
-            authenticated_user: Authenticated OAuth2 user
 
         Returns:
             BatchNotificationResponse with created notifications
@@ -183,6 +182,9 @@ class RecipeNotificationService:
             RecipeNotFoundError: If recipe does not exist
             PermissionDenied: If user lacks permission to notify recipients
         """
+        # Get authenticated user from security context
+        authenticated_user = require_current_user()
+
         logger.info(
             "Processing recipe liked notifications",
             recipe_id=str(request.recipe_id),
@@ -302,13 +304,11 @@ class RecipeNotificationService:
     def send_recipe_commented_notifications(
         self,
         request: RecipeCommentedRequest,
-        authenticated_user: OAuth2User,
     ) -> BatchNotificationResponse:
         """Send notifications when a recipe is commented on.
 
         Args:
             request: Recipe commented request with recipient_ids and comment_id
-            authenticated_user: Authenticated OAuth2 user
 
         Returns:
             BatchNotificationResponse with created notifications
@@ -318,6 +318,9 @@ class RecipeNotificationService:
             RecipeNotFoundError: If recipe does not exist
             PermissionDenied: If user lacks permission to notify recipients
         """
+        # Get authenticated user from security context
+        authenticated_user = require_current_user()
+
         logger.info(
             "Processing recipe commented notifications",
             comment_id=str(request.comment_id),

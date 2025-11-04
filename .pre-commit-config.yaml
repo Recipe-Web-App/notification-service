@@ -74,7 +74,7 @@ repos:
         additional_dependencies:
           - django>=5.2.7
           - djangorestframework>=3.16.1
-          - django-stubs
+          - django-stubs[mypy]
           - djangorestframework-stubs
           - types-requests
           - python-dotenv>=1.1.1
@@ -87,6 +87,8 @@ repos:
           - django-cors-headers>=4.3.0
           - structlog>=24.4.0
           - colorama>=0.4.6
+          - pyjwt>=2.8.0
+          - requests>=2.31.0
         exclude: ^(migrations/|tests/)
 
   # ============================================================================

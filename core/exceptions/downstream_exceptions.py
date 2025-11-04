@@ -92,3 +92,17 @@ class DownstreamServiceUnavailableError(DownstreamServiceError):
             service_name=service_name,
             status_code=status_code,
         )
+
+
+class ConflictError(Exception):
+    """Conflict error for operations that cannot be performed (409)."""
+
+    def __init__(self, message: str, detail: str | None = None):
+        """Initialize conflict error.
+
+        Args:
+            message: Error message
+            detail: Additional details about the conflict
+        """
+        self.detail = detail
+        super().__init__(message)

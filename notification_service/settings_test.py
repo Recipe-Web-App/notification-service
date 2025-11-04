@@ -2,7 +2,11 @@
 
 from django.db.models.signals import class_prepared
 
+from .settings import MIDDLEWARE as BASE_MIDDLEWARE
 from .settings import *
+
+# Disable rate limiting middleware for tests
+MIDDLEWARE = [m for m in BASE_MIDDLEWARE if "RateLimit" not in m]
 
 # Use SQLite for faster tests
 DATABASES = {

@@ -69,6 +69,7 @@ class TestRecipeCommentedNotifications(TestCase):
             updated_at=datetime.now(UTC),
         )
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -77,8 +78,10 @@ class TestRecipeCommentedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test sending notifications with admin scope bypasses follower check."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -91,7 +94,6 @@ class TestRecipeCommentedNotifications(TestCase):
         # Execute
         response = self.service.send_recipe_commented_notifications(
             request=self.recipe_commented_request,
-            authenticated_user=self.admin_user,
         )
 
         # Assertions
@@ -115,6 +117,7 @@ class TestRecipeCommentedNotifications(TestCase):
         # Verify notification service called for each recipient
         self.assertEqual(mock_notification_service.create_notification.call_count, 2)
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -123,8 +126,10 @@ class TestRecipeCommentedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test user scope validates commenter follows author."""
+        mock_require_current_user.return_value = self.regular_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -139,7 +144,6 @@ class TestRecipeCommentedNotifications(TestCase):
         # Execute
         response = self.service.send_recipe_commented_notifications(
             request=self.recipe_commented_request,
-            authenticated_user=self.regular_user,
         )
 
         # Assertions
@@ -149,12 +153,15 @@ class TestRecipeCommentedNotifications(TestCase):
         # Verify follower validation was called once (for commenter)
         self.assertEqual(mock_user_client.validate_follower_relationship.call_count, 1)
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     def test_send_notifications_comment_not_found(
         self,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test comment not found raises CommentNotFoundError."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mock to raise CommentNotFoundError
         mock_recipe_client.get_comment.side_effect = CommentNotFoundError(
             comment_id=str(self.recipe_commented_request.comment_id)
@@ -164,15 +171,17 @@ class TestRecipeCommentedNotifications(TestCase):
         with self.assertRaises(CommentNotFoundError):
             self.service.send_recipe_commented_notifications(
                 request=self.recipe_commented_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     def test_send_notifications_recipe_not_found(
         self,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test recipe not found raises RecipeNotFoundError."""
+        mock_require_current_user.return_value = self.regular_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         # Recipe not found after fetching comment
@@ -184,17 +193,19 @@ class TestRecipeCommentedNotifications(TestCase):
         with self.assertRaises(RecipeNotFoundError):
             self.service.send_recipe_commented_notifications(
                 request=self.recipe_commented_request,
-                authenticated_user=self.admin_user,
             )
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     def test_send_notifications_invalid_follower_relationship(
         self,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test commenter not following author raises PermissionDenied."""
+        mock_require_current_user.return_value = self.regular_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -205,11 +216,11 @@ class TestRecipeCommentedNotifications(TestCase):
         with self.assertRaises(PermissionDenied) as exc_info:
             self.service.send_recipe_commented_notifications(
                 request=self.recipe_commented_request,
-                authenticated_user=self.regular_user,
             )
 
         self.assertIn("not a follower", str(exc_info.exception.detail).lower())
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -220,8 +231,10 @@ class TestRecipeCommentedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test email template rendered with context including comment preview."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -235,7 +248,6 @@ class TestRecipeCommentedNotifications(TestCase):
         # Execute
         self.service.send_recipe_commented_notifications(
             request=self.recipe_commented_request,
-            authenticated_user=self.admin_user,
         )
 
         # Verify template was rendered
@@ -248,6 +260,7 @@ class TestRecipeCommentedNotifications(TestCase):
         self.assertIn("comment_preview", first_call[0][1])
         self.assertIn("recipe_url", first_call[0][1])
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -256,8 +269,10 @@ class TestRecipeCommentedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test notifications include correct metadata."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -270,7 +285,6 @@ class TestRecipeCommentedNotifications(TestCase):
         # Execute
         self.service.send_recipe_commented_notifications(
             request=self.recipe_commented_request,
-            authenticated_user=self.admin_user,
         )
 
         # Verify metadata was included in notification creation
@@ -284,6 +298,7 @@ class TestRecipeCommentedNotifications(TestCase):
         self.assertEqual(metadata["recipe_id"], str(self.mock_comment.recipe_id))
         self.assertEqual(metadata["commenter_id"], str(self.mock_comment.user_id))
 
+    @patch("core.services.recipe_notification_service.require_current_user")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -292,8 +307,10 @@ class TestRecipeCommentedNotifications(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_require_current_user,
     ):
         """Test notifications are queued for async processing."""
+        mock_require_current_user.return_value = self.admin_user
         # Setup mocks
         mock_recipe_client.get_comment.return_value = self.mock_comment
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -306,7 +323,6 @@ class TestRecipeCommentedNotifications(TestCase):
         # Execute
         self.service.send_recipe_commented_notifications(
             request=self.recipe_commented_request,
-            authenticated_user=self.admin_user,
         )
 
         # Verify queue flag was set to True

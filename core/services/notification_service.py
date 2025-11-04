@@ -3,11 +3,15 @@
 from typing import Any
 from uuid import UUID
 
+from django.core.exceptions import PermissionDenied
 from django.db.models import QuerySet
+from django.http import Http404
 
 import django_rq
 import structlog
 
+from core.auth.context import require_current_user
+from core.exceptions.downstream_exceptions import ConflictError
 from core.models.notification import Notification
 from core.models.user import User
 
@@ -234,6 +238,128 @@ class NotificationService:
         }
 
         return stats
+
+    def get_notification_for_user(
+        self, notification_id: UUID, include_message: bool = False
+    ) -> Notification:
+        """Get a notification for the authenticated user with authorization check.
+
+        Args:
+            notification_id: Notification ID
+            include_message: Whether to include the message body in the response
+
+        Returns:
+            Notification instance
+
+        Raises:
+            Http404: If notification not found
+            PermissionDenied: If user is not authorized to view this notification
+        """
+        # Get current user from security context
+        current_user = require_current_user()
+
+        # Fetch notification
+        try:
+            notification = Notification.objects.get(notification_id=notification_id)
+        except Notification.DoesNotExist as e:
+            logger.warning(
+                "notification_not_found",
+                notification_id=str(notification_id),
+                user_id=current_user.user_id,
+            )
+            raise Http404(f"Notification with ID {notification_id} not found") from e
+
+        # Authorization check
+        has_admin_scope = current_user.has_scope("notification:admin")
+        is_owner = (
+            notification.recipient
+            and str(notification.recipient.user_id) == current_user.user_id
+        )
+
+        if not has_admin_scope and not is_owner:
+            logger.warning(
+                "unauthorized_notification_access",
+                notification_id=str(notification_id),
+                user_id=current_user.user_id,
+                recipient_id=str(notification.recipient.user_id)
+                if notification.recipient
+                else None,
+            )
+            raise PermissionDenied("You can only view your own notifications")
+
+        logger.info(
+            "notification_retrieved",
+            notification_id=str(notification_id),
+            user_id=current_user.user_id,
+            include_message=include_message,
+        )
+
+        return notification
+
+    def delete_notification(self, notification_id: UUID) -> None:
+        """Delete a notification with authorization and status checks.
+
+        Args:
+            notification_id: Notification ID
+
+        Raises:
+            Http404: If notification not found
+            PermissionDenied: If user is not authorized to delete this notification
+            ConflictError: If notification is in 'queued' status
+        """
+        # Get current user from security context
+        current_user = require_current_user()
+
+        # Fetch notification
+        try:
+            notification = Notification.objects.get(notification_id=notification_id)
+        except Notification.DoesNotExist as e:
+            logger.warning(
+                "notification_not_found_for_deletion",
+                notification_id=str(notification_id),
+                user_id=current_user.user_id,
+            )
+            raise Http404(f"Notification with ID {notification_id} not found") from e
+
+        # Authorization check
+        has_admin_scope = current_user.has_scope("notification:admin")
+        is_owner = (
+            notification.recipient
+            and str(notification.recipient.user_id) == current_user.user_id
+        )
+
+        if not has_admin_scope and not is_owner:
+            logger.warning(
+                "unauthorized_notification_deletion",
+                notification_id=str(notification_id),
+                user_id=current_user.user_id,
+                recipient_id=str(notification.recipient.user_id)
+                if notification.recipient
+                else None,
+            )
+            raise PermissionDenied("You can only delete your own notifications")
+
+        # Status check - cannot delete queued notifications
+        if notification.status == Notification.QUEUED:
+            logger.warning(
+                "cannot_delete_queued_notification",
+                notification_id=str(notification_id),
+                user_id=current_user.user_id,
+                status=notification.status,
+            )
+            raise ConflictError(
+                "Cannot delete notification while it is being processed",
+                detail=f"Notification status is '{notification.status}'",
+            )
+
+        # Delete the notification
+        notification.delete()
+
+        logger.info(
+            "notification_deleted",
+            notification_id=str(notification_id),
+            user_id=current_user.user_id,
+        )
 
 
 # Singleton instance

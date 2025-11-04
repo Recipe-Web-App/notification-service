@@ -56,6 +56,7 @@ class TestRecipePublishedEndpoint(TestCase):
             updated_at=datetime.now(UTC),
         )
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
@@ -66,6 +67,7 @@ class TestRecipePublishedEndpoint(TestCase):
         mock_user_client,
         mock_recipe_client,
         mock_authenticate,
+        mock_get_current_user,
     ):
         """Test POST with admin scope returns HTTP 202."""
         # Setup authentication
@@ -75,6 +77,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup service mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -99,6 +102,7 @@ class TestRecipePublishedEndpoint(TestCase):
         self.assertEqual(len(data["notifications"]), 2)
         self.assertEqual(data["message"], "Notifications queued successfully")
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
@@ -109,6 +113,7 @@ class TestRecipePublishedEndpoint(TestCase):
         mock_user_client,
         mock_recipe_client,
         mock_authenticate,
+        mock_get_current_user,
     ):
         """Test POST with user scope and valid followers returns HTTP 202."""
         # Setup authentication
@@ -118,6 +123,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["notification:user"],
         )
         mock_authenticate.return_value = (regular_user, None)
+        mock_get_current_user.return_value = regular_user
 
         # Setup service mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -138,8 +144,11 @@ class TestRecipePublishedEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 202)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_without_authentication_returns_401(self, mock_authenticate):
+    def test_post_without_authentication_returns_401(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST without authentication returns HTTP 401."""
         # Setup authentication to fail
         mock_authenticate.return_value = None
@@ -154,8 +163,11 @@ class TestRecipePublishedEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 401)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_without_required_scope_returns_403(self, mock_authenticate):
+    def test_post_without_required_scope_returns_403(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST without required scope returns HTTP 403."""
         # Setup authentication with wrong scope
         user_without_scope = OAuth2User(
@@ -164,6 +176,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["some:other:scope"],
         )
         mock_authenticate.return_value = (user_without_scope, None)
+        mock_get_current_user.return_value = user_without_scope
 
         # Execute
         response = self.client.post(
@@ -177,6 +190,7 @@ class TestRecipePublishedEndpoint(TestCase):
         data = response.json()
         self.assertIn("notification:user", data["detail"])
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
@@ -185,6 +199,7 @@ class TestRecipePublishedEndpoint(TestCase):
         mock_user_client,
         mock_recipe_client,
         mock_authenticate,
+        mock_get_current_user,
     ):
         """Test POST with invalid followers returns HTTP 403."""
         # Setup authentication
@@ -194,6 +209,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["notification:user"],
         )
         mock_authenticate.return_value = (regular_user, None)
+        mock_get_current_user.return_value = regular_user
 
         # Setup service mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
@@ -213,8 +229,11 @@ class TestRecipePublishedEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 403)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_with_invalid_payload_returns_400(self, mock_authenticate):
+    def test_post_with_invalid_payload_returns_400(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST with invalid payload returns HTTP 400."""
         # Setup authentication
         admin_user = OAuth2User(
@@ -223,6 +242,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Invalid payload - missing required field
         invalid_data = {
@@ -243,8 +263,11 @@ class TestRecipePublishedEndpoint(TestCase):
         self.assertEqual(data["error"], "bad_request")
         self.assertIn("errors", data)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_with_empty_recipient_list_returns_400(self, mock_authenticate):
+    def test_post_with_empty_recipient_list_returns_400(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST with empty recipient list returns HTTP 400."""
         # Setup authentication
         admin_user = OAuth2User(
@@ -253,6 +276,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Invalid payload - empty recipient_ids
         invalid_data = {
@@ -270,8 +294,11 @@ class TestRecipePublishedEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 400)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
-    def test_post_with_too_many_recipients_returns_400(self, mock_authenticate):
+    def test_post_with_too_many_recipients_returns_400(
+        self, mock_authenticate, mock_get_current_user
+    ):
         """Test POST with >100 recipients returns HTTP 400."""
         # Setup authentication
         admin_user = OAuth2User(
@@ -280,6 +307,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Invalid payload - too many recipients
         invalid_data = {
@@ -297,12 +325,11 @@ class TestRecipePublishedEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 400)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     def test_post_with_nonexistent_recipe_returns_404(
-        self,
-        mock_recipe_client,
-        mock_authenticate,
+        self, mock_recipe_client, mock_authenticate, mock_get_current_user
     ):
         """Test POST with nonexistent recipe returns HTTP 404."""
         # Setup authentication
@@ -312,6 +339,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup recipe client to raise RecipeNotFoundError
         mock_recipe_client.get_recipe.side_effect = RecipeNotFoundError(
@@ -328,6 +356,7 @@ class TestRecipePublishedEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 404)
 
+    @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
@@ -338,6 +367,7 @@ class TestRecipePublishedEndpoint(TestCase):
         mock_user_client,
         mock_recipe_client,
         mock_authenticate,
+        mock_get_current_user,
     ):
         """Test response contains notification IDs for each recipient."""
         # Setup authentication
@@ -347,6 +377,7 @@ class TestRecipePublishedEndpoint(TestCase):
             scopes=["notification:admin"],
         )
         mock_authenticate.return_value = (admin_user, None)
+        mock_get_current_user.return_value = admin_user
 
         # Setup service mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe

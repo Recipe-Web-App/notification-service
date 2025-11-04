@@ -354,6 +354,9 @@ paths:
         Retrieve notification details including delivery status.
         Users can only access their own notifications unless they have **notification:admin** scope.
 
+        **Message Field**: By default, the `message` field is excluded from the response to reduce payload size.
+        Use the `include_message` query parameter to include the full message body.
+
         Use this endpoint to poll for notification delivery status after queuing.
       operationId: getNotification
       security:
@@ -366,6 +369,13 @@ paths:
             type: string
             format: uuid
           description: Notification UUID
+        - name: include_message
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include the full message body in the response (default is false to reduce payload size)
       responses:
         '200':
           description: Notification details retrieved successfully
@@ -385,9 +395,19 @@ paths:
                 sent_at: "2025-10-28T14:30:15Z"
                 retry_count: 0
                 max_retries: 3
+                error_message: ""
                 metadata:
                   template_type: recipe_published
                   recipe_id: 660e8400-e29b-41d4-a716-446655440099
+        '400':
+          description: Invalid notification ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "bad_request"
+                message: "Invalid notification ID format"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -402,11 +422,16 @@ paths:
         - Notification Management
       summary: Delete a notification
       description: |
-        Delete a notification record. Only available to admin users.
-        Note: Cannot delete notifications that are currently being processed (status=queued).
+        Delete a notification record. Available to:
+        - **Admin users** (notification:admin scope) - Can delete any notification
+        - **Notification owners** (notification:user scope) - Can delete their own notifications
+
+        **Restrictions:**
+        - Cannot delete notifications that are currently being processed (status=queued)
+        - Returns 409 Conflict if attempting to delete a queued notification
       operationId: deleteNotification
       security:
-        - OAuth2: ["notification:admin"]
+        - OAuth2: ["notification:user", "notification:admin"]
       parameters:
         - name: notificationId
           in: path
@@ -418,6 +443,15 @@ paths:
       responses:
         '204':
           description: Notification deleted successfully
+        '400':
+          description: Invalid notification ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "bad_request"
+                message: "Invalid notification ID format"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1022,7 +1056,7 @@ components:
         message:
           type: string
           nullable: true
-          description: Message body (may be omitted for brevity)
+          description: Message body (excluded by default to reduce payload size - use include_message query parameter to retrieve)
         notification_type:
           type: string
           enum: [email]
