@@ -13,6 +13,8 @@ from .views import (
     RecipeCommentedView,
     RecipeLikedView,
     RecipePublishedView,
+    UserNotificationListView,
+    UserNotificationsByIdView,
 )
 
 urlpatterns = [
@@ -56,5 +58,16 @@ urlpatterns = [
         "notifications/<str:notification_id>",
         NotificationDetailView.as_view(),
         name="notification-detail",
+    ),
+    # User notification endpoints
+    path(
+        "users/me/notifications",
+        UserNotificationListView.as_view(),
+        name="user-notifications",
+    ),
+    path(
+        "users/<str:user_id>/notifications",
+        UserNotificationsByIdView.as_view(),
+        name="user-notifications-by-id",
     ),
 ]

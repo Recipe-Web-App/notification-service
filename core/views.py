@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.auth.oauth2 import OAuth2Authentication
+from core.pagination import NotificationPageNumberPagination
 from core.schemas.notification import (
     MentionRequest,
     NewFollowerRequest,
@@ -801,4 +802,317 @@ class NotificationDetailView(APIView):
         except Exception:
             # Let DRF exception handler handle it
             # (Http404, PermissionDenied, ConflictError, etc.)
+            raise
+
+
+class UserNotificationListView(APIView):
+    """API endpoint for retrieving the authenticated user's notifications.
+
+    GET: Retrieve paginated list of notifications for the current user
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """Retrieve paginated notifications for the authenticated user.
+
+        Authorization:
+        - Requires notification:user OR notification:admin scope
+        - Users can only see their own notifications
+
+        Query parameters:
+        - page: Page number (default: 1)
+        - page_size: Items per page (default: 20, max: 100)
+        - status: Filter by status (optional: pending, queued, sent, failed)
+        - notification_type: Filter by type (optional: email)
+        - include_message: Include message body (default: false)
+
+        Args:
+            request: HTTP request
+
+        Returns:
+            Response with paginated notification list
+        """
+        logger.info(
+            "User notifications list request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has required scope
+        if not request.user.has_scope(
+            "notification:user"
+        ) and not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for notifications list",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": "You do not have permission to perform this action",
+                    "detail": "Requires notification:user or notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Parse query parameters
+        status_filter = request.query_params.get("status", None)
+        notification_type_filter = request.query_params.get("notification_type", None)
+        include_message = (
+            request.query_params.get("include_message", "false").lower() == "true"
+        )
+
+        # Validate status filter if provided
+        if status_filter and status_filter not in [
+            "pending",
+            "queued",
+            "sent",
+            "failed",
+        ]:
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid status filter",
+                    "detail": "Status must be one of: pending, queued, sent, failed",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate notification_type filter if provided
+        if notification_type_filter and notification_type_filter not in ["email"]:
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid notification_type filter",
+                    "detail": "Notification type must be: email",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get notifications (service handles authorization)
+        try:
+            queryset = notification_service.get_my_notifications(
+                status=status_filter,
+                notification_type=notification_type_filter,
+            )
+
+            # Apply pagination
+            paginator = NotificationPageNumberPagination()
+            paginated_queryset = paginator.paginate_queryset(queryset, request)
+
+            """
+            Handle case where paginate_queryset returns None
+            (shouldn't happen with valid requests)
+            """
+            if paginated_queryset is None:
+                paginated_queryset = []
+
+            # Serialize notifications
+            notifications_data = []
+            for notification in paginated_queryset:
+                notification_detail = NotificationDetail.model_validate(notification)
+
+                # Exclude message if not requested
+                if include_message:
+                    notifications_data.append(notification_detail.model_dump())
+                else:
+                    notifications_data.append(
+                        notification_detail.model_dump(exclude={"message"})
+                    )
+
+            # Build paginated response using DRF's method
+            # get_paginated_response returns a Response object
+            paginated_response = paginator.get_paginated_response(notifications_data)
+
+            logger.info(
+                "User notifications list retrieved",
+                user_id=request.user.user_id,
+                count=len(notifications_data),
+            )
+
+            """
+            get_paginated_response already returns a Response, so we return it directly
+            """
+            return paginated_response
+
+        except Exception as e:
+            # Log the exception for debugging
+            logger.error(
+                "Error retrieving user notifications",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=request.user.user_id if request.user else None,
+                exc_info=True,
+            )
+            # Let DRF exception handler handle it
+            # (PermissionDenied, etc.)
+            raise
+
+
+class UserNotificationsByIdView(APIView):
+    """API endpoint for retrieving notifications for a specific user by user_id.
+
+    GET: Retrieve paginated list of notifications for a specified user (admin only)
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, user_id):
+        """Retrieve paginated notifications for a specific user.
+
+        Authorization:
+        - Requires notification:admin scope only
+        - Admin users can query notifications for any user
+
+        Query parameters:
+        - page: Page number (default: 1)
+        - page_size: Items per page (default: 20, max: 100)
+        - status: Filter by status (optional: pending, queued, sent, failed)
+        - notification_type: Filter by type (optional: email)
+        - include_message: Include message body (default: false)
+
+        Args:
+            request: HTTP request
+            user_id: UUID of the user whose notifications to retrieve
+
+        Returns:
+            Response with paginated notification list
+        """
+        logger.info(
+            "User notifications by ID request received",
+            target_user_id=user_id,
+            requester_user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has admin scope (this endpoint is admin-only)
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for user notifications by ID",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+                target_user_id=user_id,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": "You do not have permission to perform this action",
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Validate user_id is a valid UUID
+        try:
+            user_id_uuid = UUID(user_id)
+        except ValueError:
+            logger.warning(
+                "Invalid user ID format",
+                user_id=user_id,
+                requester_user_id=request.user.user_id,
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid user ID format",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Parse query parameters
+        status_filter = request.query_params.get("status", None)
+        notification_type_filter = request.query_params.get("notification_type", None)
+        include_message = (
+            request.query_params.get("include_message", "false").lower() == "true"
+        )
+
+        # Validate status filter if provided
+        if status_filter and status_filter not in [
+            "pending",
+            "queued",
+            "sent",
+            "failed",
+        ]:
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid status filter",
+                    "detail": "Status must be one of: pending, queued, sent, failed",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate notification_type filter if provided
+        if notification_type_filter and notification_type_filter not in ["email"]:
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid notification_type filter",
+                    "detail": "Notification type must be: email",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get notifications (service handles user existence check)
+        try:
+            queryset = notification_service.get_user_notifications(
+                user_id=user_id_uuid,
+                status=status_filter,
+                notification_type=notification_type_filter,
+            )
+
+            # Apply pagination
+            paginator = NotificationPageNumberPagination()
+            paginated_queryset = paginator.paginate_queryset(queryset, request)
+
+            """
+            Handle case where paginate_queryset returns None
+            (shouldn't happen with valid requests)
+            """
+            if paginated_queryset is None:
+                paginated_queryset = []
+
+            # Serialize notifications
+            notifications_data = []
+            for notification in paginated_queryset:
+                notification_detail = NotificationDetail.model_validate(notification)
+
+                # Exclude message if not requested
+                if include_message:
+                    notifications_data.append(notification_detail.model_dump())
+                else:
+                    notifications_data.append(
+                        notification_detail.model_dump(exclude={"message"})
+                    )
+
+            # Build paginated response using DRF's method
+            # get_paginated_response returns a Response object
+            paginated_response = paginator.get_paginated_response(notifications_data)
+
+            logger.info(
+                "User notifications by ID retrieved",
+                target_user_id=user_id,
+                requester_user_id=request.user.user_id,
+                count=len(notifications_data),
+            )
+
+            """
+            get_paginated_response already returns a Response, so we return it directly
+            """
+            return paginated_response
+
+        except Exception as e:
+            # Log the exception for debugging
+            logger.error(
+                "Error retrieving user notifications by ID",
+                error=str(e),
+                error_type=type(e).__name__,
+                target_user_id=user_id,
+                requester_user_id=request.user.user_id if request.user else None,
+                exc_info=True,
+            )
+            # Let DRF exception handler handle it
+            # (UserNotFoundError will be caught by global exception handler)
             raise

@@ -90,7 +90,7 @@ class TestCustomExceptionHandler(unittest.TestCase):
 
         self.assertIsNotNone(response)
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        self.assertEqual(response.data["status"], 500)
+        self.assertEqual(response.data["error"], "internal_server_error")
         self.assertIn("internal server error", response.data["message"].lower())
 
     @patch("core.exceptions.handlers.get_request_id")
