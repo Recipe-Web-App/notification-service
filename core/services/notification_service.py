@@ -330,8 +330,8 @@ class NotificationService:
             type_filter=notification_type,
         )
 
-        # Return queryset without limit - pagination handled by view
-        return queryset
+        # Return queryset ordered by created_at DESC - pagination handled by view
+        return queryset.order_by("-created_at")
 
     def get_notification_for_user(
         self, notification_id: UUID, include_message: bool = False
