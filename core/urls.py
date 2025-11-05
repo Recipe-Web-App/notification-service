@@ -14,6 +14,7 @@ from .views import (
     RecipeLikedView,
     RecipePublishedView,
     UserNotificationListView,
+    UserNotificationsByIdView,
 )
 
 urlpatterns = [
@@ -63,5 +64,10 @@ urlpatterns = [
         "users/me/notifications",
         UserNotificationListView.as_view(),
         name="user-notifications",
+    ),
+    path(
+        "users/<str:user_id>/notifications",
+        UserNotificationsByIdView.as_view(),
+        name="user-notifications-by-id",
     ),
 ]

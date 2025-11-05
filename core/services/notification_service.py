@@ -11,7 +11,7 @@ import django_rq
 import structlog
 
 from core.auth.context import require_current_user
-from core.exceptions.downstream_exceptions import ConflictError
+from core.exceptions.downstream_exceptions import ConflictError, UserNotFoundError
 from core.models.notification import Notification
 from core.models.user import User
 
@@ -122,14 +122,14 @@ class NotificationService:
         """
         return Notification.objects.get(notification_id=notification_id)
 
-    def get_user_notifications(
+    def get_notifications_for_user(
         self,
         user: User,
         status: str | None = None,
         notification_type: str | None = None,
         limit: int = 100,
     ) -> QuerySet[Notification]:
-        """Get notifications for a user.
+        """Get notifications for a user (internal helper method).
 
         Args:
             user: User instance
@@ -326,6 +326,75 @@ class NotificationService:
         logger.info(
             "user_notifications_queried",
             user_id=current_user.user_id,
+            status_filter=status,
+            type_filter=notification_type,
+        )
+
+        # Return queryset ordered by created_at DESC - pagination handled by view
+        return queryset.order_by("-created_at")
+
+    def get_user_notifications(
+        self,
+        user_id: UUID,
+        status: str | None = None,
+        notification_type: str | None = None,
+    ) -> QuerySet[Notification]:
+        """Get notifications for a specific user by user_id (admin only).
+
+        This method allows admins to retrieve notifications for any user.
+        It queries by recipient__user_id directly for efficiency.
+
+        Args:
+            user_id: UUID of the user whose notifications to retrieve
+            status: Filter by status (optional)
+            notification_type: Filter by type (optional)
+
+        Returns:
+            QuerySet of Notification instances ordered by created_at DESC
+
+        Raises:
+            PermissionDenied: If current user lacks admin scope
+            UserNotFoundError: If user with given user_id does not exist
+        """
+        # Get current user from security context
+        current_user = require_current_user()
+
+        # Check user has admin scope (this method is admin-only)
+        if not current_user.has_scope("notification:admin"):
+            logger.warning(
+                "insufficient_scope_for_user_notifications",
+                user_id=current_user.user_id,
+                scopes=current_user.scopes,
+                target_user_id=str(user_id),
+            )
+            raise PermissionDenied("Requires notification:admin scope")
+
+        # Check if user exists in the local database
+        try:
+            User.objects.get(user_id=user_id)
+        except User.DoesNotExist as err:
+            logger.warning(
+                "target_user_not_found_for_notifications",
+                target_user_id=str(user_id),
+                requester_user_id=current_user.user_id,
+            )
+            raise UserNotFoundError(str(user_id)) from err
+
+        # Query notifications by recipient user_id directly (more efficient)
+        # Filter by recipient__user_id for direct relationship query
+        queryset = Notification.objects.filter(recipient__user_id=user_id)
+
+        # Apply filters
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if notification_type:
+            queryset = queryset.filter(notification_type=notification_type)
+
+        logger.info(
+            "user_notifications_by_id_queried",
+            target_user_id=str(user_id),
+            requester_user_id=current_user.user_id,
             status_filter=status,
             type_filter=notification_type,
         )

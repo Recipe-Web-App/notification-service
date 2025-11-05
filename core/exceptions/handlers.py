@@ -117,8 +117,18 @@ def _create_error_response(
     Returns:
         Dictionary with standard error response format.
     """
+    # Map status codes to error types
+    error_type_map = {
+        400: "bad_request",
+        401: "unauthorized",
+        403: "forbidden",
+        404: "not_found",
+        409: "conflict",
+        500: "internal_server_error",
+    }
+
     return {
-        "status": status_code,
+        "error": error_type_map.get(status_code, "error"),
         "message": message,
         "request_id": request_id,
         "timestamp": datetime.now(UTC).isoformat(),
