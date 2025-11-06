@@ -223,22 +223,6 @@ class NotificationService:
         """
         return Notification.objects.filter(status=Notification.PENDING)[:limit]
 
-    def get_notification_stats(self) -> dict[str, int]:
-        """Get notification statistics.
-
-        Returns:
-            Dictionary with counts by status
-        """
-        stats = {
-            "total": Notification.objects.count(),
-            "pending": Notification.objects.filter(status=Notification.PENDING).count(),
-            "queued": Notification.objects.filter(status=Notification.QUEUED).count(),
-            "sent": Notification.objects.filter(status=Notification.SENT).count(),
-            "failed": Notification.objects.filter(status=Notification.FAILED).count(),
-        }
-
-        return stats
-
     def get_my_notifications(
         self,
         status: str | None = None,

@@ -1,5 +1,6 @@
 """API views for core application."""
 
+from datetime import datetime
 from uuid import UUID
 
 import structlog
@@ -15,12 +16,15 @@ from core.schemas.notification import (
     MentionRequest,
     NewFollowerRequest,
     NotificationDetail,
+    NotificationStats,
     PasswordResetRequest,
     RecipeCommentedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
+    TemplateListResponse,
 )
 from core.services import health_service
+from core.services.admin_service import admin_service
 from core.services.notification_service import notification_service
 from core.services.recipe_notification_service import (
     recipe_notification_service,
@@ -1115,4 +1119,414 @@ class UserNotificationsByIdView(APIView):
             )
             # Let DRF exception handler handle it
             # (UserNotFoundError will be caught by global exception handler)
+            raise
+
+
+class NotificationStatsView(APIView):
+    """API endpoint for retrieving notification statistics.
+
+    GET: Retrieve comprehensive notification statistics (admin only)
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """Retrieve notification statistics with optional date range filtering.
+
+        Authorization:
+        - Requires notification:admin scope
+
+        Query Parameters:
+        - start_date (optional): ISO 8601 datetime for start of range
+        - end_date (optional): ISO 8601 datetime for end of range
+
+        Returns:
+            200 OK with NotificationStats if successful
+            400 Bad Request if date parameters are invalid
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks admin scope
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Notification stats request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has admin scope
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for notification stats",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": "You do not have permission to perform this action",
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Parse optional date range query parameters
+        start_date_str = request.query_params.get("start_date")
+        end_date_str = request.query_params.get("end_date")
+
+        start_date = None
+        end_date = None
+
+        # Validate and parse start_date
+        if start_date_str:
+            try:
+                start_date = datetime.fromisoformat(
+                    start_date_str.replace("Z", "+00:00")
+                )
+            except (ValueError, AttributeError) as e:
+                logger.warning(
+                    "Invalid start_date format",
+                    start_date=start_date_str,
+                    error=str(e),
+                )
+                return Response(
+                    {
+                        "error": "bad_request",
+                        "message": "Invalid start_date format",
+                        "detail": (
+                            "Expected ISO 8601 format (e.g., 2025-10-01T00:00:00Z)"
+                        ),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Validate and parse end_date
+        if end_date_str:
+            try:
+                end_date = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError) as e:
+                logger.warning(
+                    "Invalid end_date format",
+                    end_date=end_date_str,
+                    error=str(e),
+                )
+                return Response(
+                    {
+                        "error": "bad_request",
+                        "message": "Invalid end_date format",
+                        "detail": (
+                            "Expected ISO 8601 format (e.g., 2025-10-28T23:59:59Z)"
+                        ),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Validate date range logic
+        if start_date and end_date and start_date > end_date:
+            logger.warning(
+                "Invalid date range",
+                start_date=start_date.isoformat(),
+                end_date=end_date.isoformat(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid date range",
+                    "detail": "start_date must be before or equal to end_date",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to get stats
+        try:
+            stats = admin_service.get_notification_stats(
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+            # Validate with Pydantic schema
+            stats_response = NotificationStats(**stats)
+
+            logger.info(
+                "Notification stats retrieved successfully",
+                total=stats["total_notifications"],
+                sent=stats["status_breakdown"]["sent"],
+                failed=stats["status_breakdown"]["failed"],
+            )
+
+            return Response(
+                stats_response.model_dump(),
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            # Log the exception for debugging
+            logger.error(
+                "Error retrieving notification stats",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=request.user.user_id if request.user else None,
+                exc_info=True,
+            )
+            # Let DRF exception handler handle it
+            raise
+
+
+class RetryFailedNotificationsView(APIView):
+    """API endpoint for retrying failed notifications.
+
+    POST: Queue failed notifications for retry (admin only)
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Retry failed notifications with batch size limit.
+
+        Authorization:
+        - Requires notification:admin scope
+
+        Query Parameters:
+        - max_failures (optional): Maximum number to retry (1-1000, default: 100)
+
+        Returns:
+            202 Accepted with retry results if successful
+            400 Bad Request if parameters are invalid
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks admin scope
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Retry failed notifications request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has admin scope
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for retry failed notifications",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": "You do not have permission to perform this action",
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Parse and validate max_failures parameter
+        max_failures_str = request.query_params.get("max_failures", "100")
+
+        try:
+            max_failures = int(max_failures_str)
+        except (ValueError, TypeError):
+            logger.warning(
+                "Invalid max_failures parameter",
+                max_failures=max_failures_str,
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid max_failures parameter",
+                    "detail": "max_failures must be an integer",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate range
+        if max_failures < 1 or max_failures > 1000:
+            logger.warning(
+                "max_failures out of valid range",
+                max_failures=max_failures,
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid max_failures parameter",
+                    "detail": "max_failures must be between 1 and 1000",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to retry failed notifications
+        try:
+            result = admin_service.retry_failed_notifications(max_failures=max_failures)
+
+            message = (
+                f"{result['queued_count']} of {result['total_eligible']} "
+                "failed notifications queued for retry"
+            )
+
+            logger.info(
+                "Failed notifications retry completed",
+                queued_count=result["queued_count"],
+                total_eligible=result["total_eligible"],
+                remaining_failed=result["remaining_failed"],
+            )
+
+            return Response(
+                {
+                    "queued_count": result["queued_count"],
+                    "remaining_failed": result["remaining_failed"],
+                    "total_eligible": result["total_eligible"],
+                    "message": message,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+        except Exception as e:
+            # Log the exception for debugging
+            logger.error(
+                "Error retrying failed notifications",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=request.user.user_id if request.user else None,
+                exc_info=True,
+            )
+            # Let DRF exception handler handle it
+            raise
+
+
+class NotificationRetryStatusView(APIView):
+    """API endpoint for checking retry status.
+
+    GET: Get current retry status for failed notifications (admin only)
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """Get current retry status.
+
+        Authorization:
+        - Requires notification:admin scope
+
+        Returns:
+            200 OK with retry status if successful
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks admin scope
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Retry status request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has admin scope
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for retry status",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": "You do not have permission to perform this action",
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Call service to get retry status
+        try:
+            retry_status = admin_service.get_retry_status()
+
+            logger.info(
+                "Retry status retrieved successfully",
+                failed_retryable=retry_status["failed_retryable"],
+                failed_exhausted=retry_status["failed_exhausted"],
+                currently_queued=retry_status["currently_queued"],
+                safe_to_retry=retry_status["safe_to_retry"],
+            )
+
+            return Response(
+                retry_status,
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            # Log the exception for debugging
+            logger.error(
+                "Error retrieving retry status",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=request.user.user_id if request.user else None,
+                exc_info=True,
+            )
+            # Let DRF exception handler handle it
+            raise
+
+
+class TemplateListView(APIView):
+    """API endpoint for listing available notification templates.
+
+    GET: Retrieve list of all available notification templates
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """Retrieve list of available notification templates.
+
+        Authorization:
+        - Requires notification:user OR notification:admin scope
+
+        Returns:
+            200 OK with list of templates if successful
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks required scope
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Template list request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has required scope
+        if not request.user.has_scope(
+            "notification:user"
+        ) and not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for template list",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": "You do not have permission to perform this action",
+                    "detail": "Requires notification:user or notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Get templates from service
+        try:
+            templates = admin_service.get_all_templates()
+
+            # Validate with Pydantic schema
+            response_data = TemplateListResponse(templates=templates)
+
+            logger.info(
+                "Template list retrieved successfully",
+                template_count=len(templates),
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            # Log the exception for debugging
+            logger.error(
+                "Error retrieving template list",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=request.user.user_id if request.user else None,
+                exc_info=True,
+            )
+            # Let DRF exception handler handle it
             raise

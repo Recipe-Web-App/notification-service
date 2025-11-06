@@ -8,11 +8,15 @@ from .views import (
     MentionView,
     NewFollowerView,
     NotificationDetailView,
+    NotificationRetryStatusView,
+    NotificationStatsView,
     PasswordResetView,
     ReadinessCheckView,
     RecipeCommentedView,
     RecipeLikedView,
     RecipePublishedView,
+    RetryFailedNotificationsView,
+    TemplateListView,
     UserNotificationListView,
     UserNotificationsByIdView,
 )
@@ -22,6 +26,8 @@ urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health-check"),
     path("health/live", LivenessCheckView.as_view(), name="health-live"),
     path("health/ready", ReadinessCheckView.as_view(), name="health-ready"),
+    # Template endpoints
+    path("templates", TemplateListView.as_view(), name="template-list"),
     # Notification endpoints
     path(
         "notifications/recipe-published",
@@ -52,6 +58,22 @@ urlpatterns = [
         "notifications/password-reset",
         PasswordResetView.as_view(),
         name="password-reset",
+    ),
+    # Admin endpoints (must come before notifications/<notification_id>)
+    path(
+        "notifications/stats",
+        NotificationStatsView.as_view(),
+        name="notification-stats",
+    ),
+    path(
+        "notifications/retry-failed",
+        RetryFailedNotificationsView.as_view(),
+        name="retry-failed-notifications",
+    ),
+    path(
+        "notifications/retry-status",
+        NotificationRetryStatusView.as_view(),
+        name="notification-retry-status",
     ),
     # Notification management endpoints
     path(

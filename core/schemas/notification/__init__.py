@@ -21,6 +21,10 @@ from core.schemas.notification.recipe_liked_request import RecipeLikedRequest
 from core.schemas.notification.recipe_published_request import (
     RecipePublishedRequest,
 )
+from core.schemas.notification.template_info import (
+    TemplateInfo,
+    TemplateListResponse,
+)
 
 __all__ = [
     "BatchNotificationResponse",
@@ -36,4 +40,6 @@ __all__ = [
     "RecipeCommentedRequest",
     "RecipeLikedRequest",
     "RecipePublishedRequest",
+    "TemplateInfo",
+    "TemplateListResponse",
 ]
