@@ -4,12 +4,13 @@ from datetime import datetime
 from typing import Any
 
 from django.core.cache import cache
-from django.db.models import Count, Q
+from django.db.models import Avg, Count, F, Q
 
 import structlog
 
 from core.auth.context import require_current_user
 from core.models.notification import Notification
+from core.services.notification_service import notification_service
 
 logger = structlog.get_logger(__name__)
 
@@ -100,6 +101,9 @@ class AdminService:
         # Get failed notifications breakdown
         failed_breakdown = self._get_failed_notifications_breakdown(queryset)
 
+        # Get retry statistics
+        retry_stats = self._get_retry_statistics(queryset)
+
         # Determine actual date range used
         date_range = self._get_date_range(queryset, start_date, end_date)
 
@@ -116,6 +120,7 @@ class AdminService:
             "success_rate": success_rate,
             "average_send_time_seconds": avg_send_time,
             "failed_notifications": failed_breakdown,
+            "retry_statistics": retry_stats,
             "date_range": date_range,
         }
 
@@ -277,6 +282,168 @@ class AdminService:
             "end": last_notification.created_at.isoformat()
             if last_notification
             else None,
+        }
+
+    def _get_retry_statistics(self, queryset) -> dict[str, Any]:
+        """Get retry statistics for notifications.
+
+        Args:
+            queryset: Base queryset to analyze
+
+        Returns:
+            Dict with retry metrics:
+            - total_retried: Count of notifications that have been retried
+            - currently_retrying: Failed notifications that can still be retried
+            - exhausted_retries: Failed notifications at max retries
+            - average_retries_before_success: Avg retry_count for successful retries
+            - retry_success_rate: Success rate for retried notifications
+        """
+        # Total notifications that have been retried (retry_count > 0)
+        total_retried = queryset.filter(retry_count__gt=0).count()
+
+        # Failed notifications that can still be retried
+        currently_retrying = queryset.filter(
+            status=Notification.FAILED,
+            retry_count__lt=F("max_retries"),
+        ).count()
+
+        # Failed notifications that have exhausted retries
+        exhausted_retries = queryset.filter(
+            status=Notification.FAILED,
+            retry_count__gte=F("max_retries"),
+        ).count()
+
+        # Average retries before success (for retried notifications)
+        retried_and_sent = queryset.filter(
+            status=Notification.SENT,
+            retry_count__gt=0,
+        )
+        avg_retries = retried_and_sent.aggregate(avg=Avg("retry_count"))["avg"] or 0.0
+
+        # Retry success rate (retried and sent / total retried)
+        retried_sent_count = retried_and_sent.count()
+        retry_success_rate = (
+            float(retried_sent_count) / float(total_retried)
+            if total_retried > 0
+            else 0.0
+        )
+
+        return {
+            "total_retried": total_retried,
+            "currently_retrying": currently_retrying,
+            "exhausted_retries": exhausted_retries,
+            "average_retries_before_success": float(avg_retries),
+            "retry_success_rate": retry_success_rate,
+        }
+
+    def retry_failed_notifications(self, max_failures: int = 100) -> dict[str, Any]:
+        """Retry failed notifications that haven't exceeded max retries.
+
+        Args:
+            max_failures: Maximum number of notifications to retry (batch size limit)
+
+        Returns:
+            Dict containing:
+            - queued_count: Number of notifications queued for retry
+            - remaining_failed: Number of eligible failed notifications not retried
+            - total_eligible: Total eligible failed notifications
+        """
+        current_user = require_current_user()
+
+        logger.info(
+            "retry_failed_notifications_requested",
+            user_id=current_user.user_id,
+            max_failures=max_failures,
+        )
+
+        # Query all eligible failed notifications
+        eligible_notifications = Notification.objects.filter(
+            status=Notification.FAILED,
+            retry_count__lt=F("max_retries"),
+        ).order_by("created_at")
+
+        total_eligible = eligible_notifications.count()
+
+        # Limit to batch size
+        notifications_to_retry = eligible_notifications[:max_failures]
+
+        queued_count = 0
+        for notification in notifications_to_retry:
+            # Clear error message and enqueue
+            notification.error_message = ""
+            notification.save(update_fields=["error_message"])
+
+            # Queue the notification (this will set status to QUEUED)
+            notification_service.queue_notification(notification.notification_id)
+            queued_count += 1
+
+        remaining_failed = total_eligible - queued_count
+
+        logger.info(
+            "retry_failed_notifications_completed",
+            user_id=current_user.user_id,
+            queued_count=queued_count,
+            total_eligible=total_eligible,
+            remaining_failed=remaining_failed,
+        )
+
+        return {
+            "queued_count": queued_count,
+            "remaining_failed": remaining_failed,
+            "total_eligible": total_eligible,
+        }
+
+    def get_retry_status(self) -> dict[str, Any]:
+        """Get current retry status for failed notifications.
+
+        Returns:
+            Dict containing:
+            - failed_retryable: Count of FAILED notifications that can be retried
+            - failed_exhausted: Count of FAILED notifications at max retries
+            - currently_queued: Count of notifications currently queued
+            - safe_to_retry: Boolean indicating if safe to queue more retries
+        """
+        current_user = require_current_user()
+
+        logger.info(
+            "retry_status_requested",
+            user_id=current_user.user_id,
+        )
+
+        # Count failed notifications that can be retried
+        failed_retryable = Notification.objects.filter(
+            status=Notification.FAILED,
+            retry_count__lt=F("max_retries"),
+        ).count()
+
+        # Count failed notifications that have exhausted retries
+        failed_exhausted = Notification.objects.filter(
+            status=Notification.FAILED,
+            retry_count__gte=F("max_retries"),
+        ).count()
+
+        # Count notifications currently queued for processing
+        currently_queued = Notification.objects.filter(
+            status=Notification.QUEUED,
+        ).count()
+
+        # Safe to retry if no notifications are currently queued
+        safe_to_retry = currently_queued == 0
+
+        logger.info(
+            "retry_status_computed",
+            user_id=current_user.user_id,
+            failed_retryable=failed_retryable,
+            failed_exhausted=failed_exhausted,
+            currently_queued=currently_queued,
+            safe_to_retry=safe_to_retry,
+        )
+
+        return {
+            "failed_retryable": failed_retryable,
+            "failed_exhausted": failed_exhausted,
+            "currently_queued": currently_queued,
+            "safe_to_retry": safe_to_retry,
         }
 
 

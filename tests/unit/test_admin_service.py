@@ -476,3 +476,414 @@ class TestAdminService(TestCase):
 
         self.assertIsNone(date_range["start"])
         self.assertIsNone(date_range["end"])
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_get_retry_statistics_structure(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test _get_retry_statistics returns correct structure."""
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        queryset = Notification.objects.all()
+        retry_stats = self.admin_service._get_retry_statistics(queryset)
+
+        # Verify structure
+        self.assertIn("total_retried", retry_stats)
+        self.assertIn("currently_retrying", retry_stats)
+        self.assertIn("exhausted_retries", retry_stats)
+        self.assertIn("average_retries_before_success", retry_stats)
+        self.assertIn("retry_success_rate", retry_stats)
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_get_retry_statistics_with_retried_notifications(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test _get_retry_statistics calculates correctly with retries."""
+        # Clear existing data
+        Notification.objects.all().delete()
+
+        # Create notifications with various retry states
+        # 2 sent with retries (successful retries)
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Sent after 1 retry",
+            message="Message",
+            status=Notification.SENT,
+            retry_count=1,
+            max_retries=3,
+        )
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Sent after 2 retries",
+            message="Message",
+            status=Notification.SENT,
+            retry_count=2,
+            max_retries=3,
+        )
+
+        # 1 failed retryable (retry_count < max_retries)
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed retryable",
+            message="Message",
+            status=Notification.FAILED,
+            retry_count=1,
+            max_retries=3,
+        )
+
+        # 1 failed exhausted (retry_count >= max_retries)
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed exhausted",
+            message="Message",
+            status=Notification.FAILED,
+            retry_count=3,
+            max_retries=3,
+        )
+
+        # 1 sent without retries (first attempt success)
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Sent first attempt",
+            message="Message",
+            status=Notification.SENT,
+            retry_count=0,
+            max_retries=3,
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        queryset = Notification.objects.all()
+        retry_stats = self.admin_service._get_retry_statistics(queryset)
+
+        # total_retried: all with retry_count > 0 = 4
+        # (2 sent + 1 failed retryable + 1 exhausted)
+        self.assertEqual(retry_stats["total_retried"], 4)
+
+        # currently_retrying: failed with retry_count < max_retries = 1
+        self.assertEqual(retry_stats["currently_retrying"], 1)
+
+        # exhausted_retries: failed with retry_count >= max_retries = 1
+        self.assertEqual(retry_stats["exhausted_retries"], 1)
+
+        # average_retries_before_success: avg of sent with retry_count > 0
+        # (1 + 2) / 2 = 1.5
+        self.assertAlmostEqual(
+            retry_stats["average_retries_before_success"], 1.5, places=2
+        )
+
+        # retry_success_rate: sent with retries / total retried = 2 / 4 = 0.5
+        self.assertAlmostEqual(retry_stats["retry_success_rate"], 0.5, places=2)
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_get_retry_statistics_with_no_retries(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test _get_retry_statistics with no retries returns zeros."""
+        # Clear existing data
+        Notification.objects.all().delete()
+
+        # Create notifications without retries
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Sent first attempt",
+            message="Message",
+            status=Notification.SENT,
+            retry_count=0,
+            max_retries=3,
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        queryset = Notification.objects.all()
+        retry_stats = self.admin_service._get_retry_statistics(queryset)
+
+        self.assertEqual(retry_stats["total_retried"], 0)
+        self.assertEqual(retry_stats["currently_retrying"], 0)
+        self.assertEqual(retry_stats["exhausted_retries"], 0)
+        self.assertEqual(retry_stats["average_retries_before_success"], 0.0)
+        self.assertEqual(retry_stats["retry_success_rate"], 0.0)
+
+    @patch("core.services.notification_service.notification_service.queue_notification")
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_failed_notifications_retries_eligible(
+        self, mock_require_current_user, mock_get_current_user, mock_queue
+    ):
+        """Test retry_failed_notifications only retries eligible notifications."""
+        # Clear existing data
+        Notification.objects.all().delete()
+
+        # Create eligible failed notifications
+        notification_1 = Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed 1",
+            message="Message",
+            status=Notification.FAILED,
+            retry_count=0,
+            max_retries=3,
+            error_message="Test error",
+        )
+        notification_2 = Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed 2",
+            message="Message",
+            status=Notification.FAILED,
+            retry_count=1,
+            max_retries=3,
+            error_message="Test error",
+        )
+
+        # Create exhausted notification (should not be retried)
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed exhausted",
+            message="Message",
+            status=Notification.FAILED,
+            retry_count=3,
+            max_retries=3,
+            error_message="Test error",
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        result = self.admin_service.retry_failed_notifications(max_failures=100)
+
+        # Should retry only 2 eligible notifications
+        self.assertEqual(result["queued_count"], 2)
+        self.assertEqual(result["total_eligible"], 2)
+        self.assertEqual(result["remaining_failed"], 0)
+
+        # Verify queue_notification was called twice
+        self.assertEqual(mock_queue.call_count, 2)
+
+        # Verify error messages were cleared
+        notification_1.refresh_from_db()
+        notification_2.refresh_from_db()
+        self.assertEqual(notification_1.error_message, "")
+        self.assertEqual(notification_2.error_message, "")
+
+    @patch("core.services.notification_service.notification_service.queue_notification")
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_failed_notifications_respects_max_failures_limit(
+        self, mock_require_current_user, mock_get_current_user, mock_queue
+    ):
+        """Test retry_failed_notifications respects max_failures batch size."""
+        # Clear existing data
+        Notification.objects.all().delete()
+
+        # Create 10 eligible failed notifications
+        for i in range(10):
+            Notification.objects.create(
+                recipient=self.user,
+                recipient_email=self.user.email,
+                subject=f"Failed {i}",
+                message="Message",
+                status=Notification.FAILED,
+                retry_count=0,
+                max_retries=3,
+                error_message="Test error",
+            )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        # Retry only 5
+        result = self.admin_service.retry_failed_notifications(max_failures=5)
+
+        # Should retry only 5 notifications
+        self.assertEqual(result["queued_count"], 5)
+        self.assertEqual(result["total_eligible"], 10)
+        self.assertEqual(result["remaining_failed"], 5)
+
+        # Verify queue_notification was called 5 times
+        self.assertEqual(mock_queue.call_count, 5)
+
+    @patch("core.services.notification_service.notification_service.queue_notification")
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_failed_notifications_with_no_failed(
+        self, mock_require_current_user, mock_get_current_user, mock_queue
+    ):
+        """Test retry_failed_notifications with no failed notifications."""
+        # Clear existing data
+        Notification.objects.all().delete()
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        result = self.admin_service.retry_failed_notifications()
+
+        self.assertEqual(result["queued_count"], 0)
+        self.assertEqual(result["total_eligible"], 0)
+        self.assertEqual(result["remaining_failed"], 0)
+
+        # Verify queue_notification was not called
+        mock_queue.assert_not_called()
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_get_retry_status_returns_correct_counts(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test get_retry_status returns accurate counts."""
+        # Clear existing data
+        Notification.objects.all().delete()
+
+        # Create test notifications
+        # 3 failed retryable
+        for i in range(3):
+            Notification.objects.create(
+                recipient=self.user,
+                recipient_email=self.user.email,
+                subject=f"Retryable {i}",
+                message="Message",
+                status=Notification.FAILED,
+                retry_count=1,
+                max_retries=3,
+            )
+
+        # 2 failed exhausted
+        for i in range(2):
+            Notification.objects.create(
+                recipient=self.user,
+                recipient_email=self.user.email,
+                subject=f"Exhausted {i}",
+                message="Message",
+                status=Notification.FAILED,
+                retry_count=3,
+                max_retries=3,
+            )
+
+        # 1 queued
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Queued",
+            message="Message",
+            status=Notification.QUEUED,
+            retry_count=0,
+            max_retries=3,
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        result = self.admin_service.get_retry_status()
+
+        self.assertEqual(result["failed_retryable"], 3)
+        self.assertEqual(result["failed_exhausted"], 2)
+        self.assertEqual(result["currently_queued"], 1)
+        self.assertFalse(result["safe_to_retry"])
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_get_retry_status_safe_to_retry_true(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test get_retry_status safe_to_retry=True when no queued."""
+        # Clear existing data
+        Notification.objects.all().delete()
+
+        # Create only failed notifications
+        Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed",
+            message="Message",
+            status=Notification.FAILED,
+            retry_count=0,
+            max_retries=3,
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        result = self.admin_service.get_retry_status()
+
+        self.assertEqual(result["currently_queued"], 0)
+        self.assertTrue(result["safe_to_retry"])
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_get_notification_stats_includes_retry_statistics(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test get_notification_stats includes retry_statistics."""
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        stats = self.admin_service.get_notification_stats()
+
+        # Verify retry_statistics is included
+        self.assertIn("retry_statistics", stats)
+        retry_stats = stats["retry_statistics"]
+
+        # Verify structure
+        self.assertIn("total_retried", retry_stats)
+        self.assertIn("currently_retrying", retry_stats)
+        self.assertIn("exhausted_retries", retry_stats)
+        self.assertIn("average_retries_before_success", retry_stats)
+        self.assertIn("retry_success_rate", retry_stats)
