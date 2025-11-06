@@ -8,7 +8,8 @@ from django.db.models import Avg, Count, F, Q
 
 import structlog
 
-from core.auth.context import require_current_user
+from core.auth.context import get_current_user, require_current_user
+from core.constants.templates import TEMPLATE_REGISTRY
 from core.models.notification import Notification
 from core.services.notification_service import notification_service
 
@@ -445,6 +446,27 @@ class AdminService:
             "currently_queued": currently_queued,
             "safe_to_retry": safe_to_retry,
         }
+
+    def get_all_templates(self) -> list[dict]:
+        """Get list of all available notification templates.
+
+        Returns:
+            List of template metadata dictionaries containing:
+            - template_type: Template identifier
+            - display_name: Human-readable name
+            - description: Template description
+            - required_fields: List of required fields
+            - endpoint: API endpoint for this template
+        """
+        current_user = get_current_user()
+
+        logger.info(
+            "template_list_requested",
+            user_id=current_user.user_id if current_user else None,
+            template_count=len(TEMPLATE_REGISTRY),
+        )
+
+        return TEMPLATE_REGISTRY
 
 
 # Singleton instance

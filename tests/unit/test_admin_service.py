@@ -887,3 +887,109 @@ class TestAdminService(TestCase):
         self.assertIn("exhausted_retries", retry_stats)
         self.assertIn("average_retries_before_success", retry_stats)
         self.assertIn("retry_success_rate", retry_stats)
+
+    @patch("core.auth.context.get_current_user")
+    def test_get_all_templates_returns_list(self, mock_get_current_user):
+        """Test get_all_templates returns a list."""
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_get_current_user.return_value = admin_user
+
+        templates = self.admin_service.get_all_templates()
+
+        self.assertIsInstance(templates, list)
+        self.assertGreater(len(templates), 0)
+
+    @patch("core.auth.context.get_current_user")
+    def test_get_all_templates_returns_six_templates(self, mock_get_current_user):
+        """Test get_all_templates returns exactly 6 templates."""
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_get_current_user.return_value = admin_user
+
+        templates = self.admin_service.get_all_templates()
+
+        self.assertEqual(len(templates), 6)
+
+    @patch("core.auth.context.get_current_user")
+    def test_get_all_templates_each_has_required_fields(self, mock_get_current_user):
+        """Test each template has all required metadata fields."""
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_get_current_user.return_value = admin_user
+
+        templates = self.admin_service.get_all_templates()
+
+        required_keys = [
+            "template_type",
+            "display_name",
+            "description",
+            "required_fields",
+            "endpoint",
+        ]
+
+        for template in templates:
+            for key in required_keys:
+                self.assertIn(key, template)
+                self.assertIsNotNone(template[key])
+
+    @patch("core.auth.context.get_current_user")
+    def test_get_all_templates_types_are_unique(self, mock_get_current_user):
+        """Test all template types are unique."""
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_get_current_user.return_value = admin_user
+
+        templates = self.admin_service.get_all_templates()
+
+        template_types = [t["template_type"] for t in templates]
+
+        self.assertEqual(len(template_types), len(set(template_types)))
+
+    @patch("core.auth.context.get_current_user")
+    def test_get_all_templates_contains_expected_types(self, mock_get_current_user):
+        """Test templates include all expected notification types."""
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_get_current_user.return_value = admin_user
+
+        templates = self.admin_service.get_all_templates()
+        template_types = [t["template_type"] for t in templates]
+
+        expected_types = [
+            "recipe_published",
+            "recipe_liked",
+            "recipe_commented",
+            "new_follower",
+            "mention",
+            "password_reset",
+        ]
+
+        for expected_type in expected_types:
+            self.assertIn(expected_type, template_types)
+
+    @patch("core.auth.context.get_current_user")
+    def test_get_all_templates_works_without_authenticated_user(
+        self, mock_get_current_user
+    ):
+        """Test get_all_templates works when no user is authenticated."""
+        mock_get_current_user.return_value = None
+
+        templates = self.admin_service.get_all_templates()
+
+        self.assertEqual(len(templates), 6)

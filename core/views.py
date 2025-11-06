@@ -21,6 +21,7 @@ from core.schemas.notification import (
     RecipeCommentedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
+    TemplateListResponse,
 )
 from core.services import health_service
 from core.services.admin_service import admin_service
@@ -1449,6 +1450,79 @@ class NotificationRetryStatusView(APIView):
             # Log the exception for debugging
             logger.error(
                 "Error retrieving retry status",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=request.user.user_id if request.user else None,
+                exc_info=True,
+            )
+            # Let DRF exception handler handle it
+            raise
+
+
+class TemplateListView(APIView):
+    """API endpoint for listing available notification templates.
+
+    GET: Retrieve list of all available notification templates
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """Retrieve list of available notification templates.
+
+        Authorization:
+        - Requires notification:user OR notification:admin scope
+
+        Returns:
+            200 OK with list of templates if successful
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks required scope
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Template list request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has required scope
+        if not request.user.has_scope(
+            "notification:user"
+        ) and not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for template list",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": "You do not have permission to perform this action",
+                    "detail": "Requires notification:user or notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Get templates from service
+        try:
+            templates = admin_service.get_all_templates()
+
+            # Validate with Pydantic schema
+            response_data = TemplateListResponse(templates=templates)
+
+            logger.info(
+                "Template list retrieved successfully",
+                template_count=len(templates),
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            # Log the exception for debugging
+            logger.error(
+                "Error retrieving template list",
                 error=str(e),
                 error_type=type(e).__name__,
                 user_id=request.user.user_id if request.user else None,
