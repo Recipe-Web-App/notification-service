@@ -12,12 +12,6 @@ import requests
 class TestHealthCheckEndpointDependency(LiveServerTestCase):
     """Dependency tests for health check endpoints with real HTTP requests."""
 
-    def test_health_endpoint_responds_to_http_request(self):
-        """Test that health endpoint responds to actual HTTP request."""
-        response = requests.get(f"{self.live_server_url}/api/v1/notification/health/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
-
     def test_liveness_endpoint_responds_to_http_request(self):
         """Test that liveness endpoint responds to actual HTTP request."""
         response = requests.get(

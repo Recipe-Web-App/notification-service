@@ -39,37 +39,6 @@ from core.services.system_notification_service import (
 logger = structlog.get_logger(__name__)
 
 
-class HealthCheckView(APIView):
-    """Simple health check endpoint.
-
-    This endpoint is exempt from authentication to allow Kubernetes probes
-    and monitoring systems to check service health.
-    """
-
-    def __init__(self, **kwargs):
-        """Initialize view with authentication exemptions.
-
-        Exempt from authentication - health checks must be accessible without auth.
-
-        Args:
-            **kwargs: Keyword arguments passed to parent class
-        """
-        super().__init__(**kwargs)
-        self.authentication_classes = []
-        self.permission_classes = [AllowAny]
-
-    def get(self, _request):
-        """Handle GET request for health check.
-
-        Args:
-            _request: HTTP request object (unused).
-
-        Returns:
-            Response object with status OK.
-        """
-        return Response({"status": "ok"}, status=status.HTTP_200_OK)
-
-
 class LivenessCheckView(APIView):
     """Liveness probe endpoint for Kubernetes.
 
