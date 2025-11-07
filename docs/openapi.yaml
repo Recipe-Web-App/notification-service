@@ -479,6 +479,9 @@ paths:
       description: |
         Retry sending a failed notification. Only available for notifications with status=failed.
         Requires **notification:admin** scope.
+
+        **⚠️ IMPLEMENTATION STATUS**: This endpoint is not yet implemented. Will return 404.
+        Use `POST /notifications/retry-failed` to retry multiple failed notifications instead.
       operationId: retryNotification
       security:
         - OAuth2: ["notification:admin"]
@@ -677,6 +680,19 @@ paths:
             type: string
             enum: [pending, queued, sent, failed]
           description: Filter by notification status
+        - name: notification_type
+          in: query
+          schema:
+            type: string
+            enum: [email]
+          description: Filter by notification type
+        - name: include_message
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include the full message body in the response (default is false to reduce payload size)
       responses:
         '200':
           description: User notifications retrieved successfully
@@ -928,34 +944,35 @@ paths:
       summary: Readiness probe
       description: |
         Kubernetes readiness probe. Checks database connectivity and critical dependencies.
-        Returns 200 if service is ready to accept traffic.
+
+        **Note**: This endpoint always returns HTTP 200, even when unhealthy.
+        Check the `status` field in the response body to determine actual health state.
       operationId: readinessCheck
       security: []
       responses:
         '200':
-          description: Service is ready
+          description: Health check completed (check response body for actual status)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: healthy
-                checks:
-                  database: ok
-                  redis: ok
-                  smtp: ok
-        '503':
-          description: Service is not ready
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: unhealthy
-                checks:
-                  database: failed
-                  redis: ok
-                  smtp: degraded
+              examples:
+                healthy:
+                  summary: Service is healthy
+                  value:
+                    status: healthy
+                    checks:
+                      database: ok
+                      redis: ok
+                      smtp: ok
+                unhealthy:
+                  summary: Service is unhealthy (still returns 200)
+                  value:
+                    status: unhealthy
+                    checks:
+                      database: failed
+                      redis: ok
+                      smtp: degraded
 
   /health/live:
     get:
@@ -1183,13 +1200,14 @@ components:
         notification_type:
           type: string
           enum: [email]
+          description: Notification delivery type (implementation uses string validation, not strict enum)
         status:
           type: string
           enum: [pending, queued, sent, failed]
+          description: Current notification status (implementation uses string validation, not strict enum)
         error_message:
           type: string
-          nullable: true
-          description: Error message if status is failed
+          description: Error message if status is failed (empty string when no error)
         retry_count:
           type: integer
           minimum: 0

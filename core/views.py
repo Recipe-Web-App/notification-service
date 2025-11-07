@@ -500,8 +500,11 @@ class MentionView(APIView):
             user_id=request.user.user_id if request.user else None,
         )
 
-        # Check user has required scope (admin only)
-        if not request.user.has_scope("notification:admin"):
+        # Check user has required scope (user or admin)
+        if not (
+            request.user.has_scope("notification:user")
+            or request.user.has_scope("notification:admin")
+        ):
             logger.warning(
                 "User lacks required scope for mention notifications",
                 user_id=request.user.user_id,
@@ -511,7 +514,7 @@ class MentionView(APIView):
                 {
                     "error": "forbidden",
                     "message": ("You do not have permission to perform this action"),
-                    "detail": "Requires notification:admin scope",
+                    "detail": "Requires notification:user or notification:admin scope",
                 },
                 status=status.HTTP_403_FORBIDDEN,
             )

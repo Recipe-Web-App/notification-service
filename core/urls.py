@@ -59,7 +59,7 @@ urlpatterns = [
     ),
     # Admin endpoints (must come before notifications/<notification_id>)
     path(
-        "notifications/stats",
+        "stats",
         NotificationStatsView.as_view(),
         name="notification-stats",
     ),
