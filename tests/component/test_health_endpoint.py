@@ -19,12 +19,6 @@ class TestHealthCheckEndpointIntegration(TestCase):
         """Set up test fixtures."""
         self.client = Client()
 
-    def test_health_endpoint_returns_200_and_ok_status(self):
-        """Test that GET request to /health/ returns HTTP 200 with ok status."""
-        response = self.client.get("/api/v1/notification/health/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
-
     def test_liveness_endpoint_returns_200_and_alive_status(self):
         """Test that GET request to /health/live returns HTTP 200 with alive status."""
         response = self.client.get("/api/v1/notification/health/live")

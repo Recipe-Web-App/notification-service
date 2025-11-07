@@ -16,7 +16,7 @@ class TestMiddlewareIntegration(TestCase):
 
     def test_request_id_middleware_integration(self):
         """Test that request ID middleware works with actual requests."""
-        response = self.client.get("/api/v1/notification/health/")
+        response = self.client.get("/api/v1/notification/health/live")
 
         # Check that response has request ID header
         self.assertIn(REQUEST_ID_HEADER, response)
@@ -30,7 +30,7 @@ class TestMiddlewareIntegration(TestCase):
 
     def test_security_headers_integration(self):
         """Test that security headers are added to responses."""
-        response = self.client.get("/api/v1/notification/health/")
+        response = self.client.get("/api/v1/notification/health/live")
 
         # Check that all security headers are present
         for header, expected_value in SECURITY_HEADERS.items():
@@ -39,7 +39,7 @@ class TestMiddlewareIntegration(TestCase):
 
     def test_process_time_header_integration(self):
         """Test that process time header is added to responses."""
-        response = self.client.get("/api/v1/notification/health/")
+        response = self.client.get("/api/v1/notification/health/live")
 
         # Check that process time header is present
         self.assertIn(PROCESS_TIME_HEADER, response)
@@ -52,7 +52,8 @@ class TestMiddlewareIntegration(TestCase):
         """Test that CORS middleware is working."""
         # Make an OPTIONS request (preflight)
         response = self.client.options(
-            "/api/v1/notification/health/", headers={"origin": "http://localhost:3000"}
+            "/api/v1/notification/health/live",
+            headers={"origin": "http://localhost:3000"},
         )
 
         # CORS headers should be present in the response
@@ -61,7 +62,7 @@ class TestMiddlewareIntegration(TestCase):
 
     def test_middleware_execution_order(self):
         """Test that middleware executes in the correct order."""
-        response = self.client.get("/api/v1/notification/health/")
+        response = self.client.get("/api/v1/notification/health/live")
 
         # Request ID should be set (earliest middleware)
         self.assertIn(REQUEST_ID_HEADER, response)
@@ -95,13 +96,13 @@ class TestMiddlewareIntegration(TestCase):
 
         # Make a few requests
         for _ in range(5):
-            response = self.client.get("/api/v1/notification/health/")
+            response = self.client.get("/api/v1/notification/health/live")
             self.assertEqual(response.status_code, 200)
 
     @override_settings(DEBUG=False)
     def test_middleware_in_production_mode(self):
         """Test that middleware works correctly in production mode."""
-        response = self.client.get("/api/v1/notification/health/")
+        response = self.client.get("/api/v1/notification/health/live")
 
         # All headers should still be present
         self.assertIn(REQUEST_ID_HEADER, response)
@@ -113,7 +114,7 @@ class TestMiddlewareIntegration(TestCase):
         custom_id = "custom-request-id-12345"
 
         response = self.client.get(
-            "/api/v1/notification/health/", headers={"x-request-id": custom_id}
+            "/api/v1/notification/health/live", headers={"x-request-id": custom_id}
         )
 
         # The custom request ID should be preserved
@@ -121,7 +122,7 @@ class TestMiddlewareIntegration(TestCase):
 
     def test_all_middleware_headers_present(self):
         """Test that all expected middleware headers are present."""
-        response = self.client.get("/api/v1/notification/health/")
+        response = self.client.get("/api/v1/notification/health/live")
 
         # Verify all important headers
         expected_headers = [

@@ -105,12 +105,6 @@ All API endpoints are prefixed with `/api/v1/notification/`
 
 ### Health Check Endpoints
 
-#### General Health
-- **URL**: `/api/v1/notification/health/`
-- **Method**: `GET`
-- **Response**: `{"status": "ok"}`
-- **Description**: Basic health check endpoint
-
 #### Readiness Probe
 - **URL**: `/api/v1/notification/health/ready`
 - **Method**: `GET`
@@ -127,12 +121,12 @@ All API endpoints are prefixed with `/api/v1/notification/`
 
 ```bash
 # Local development
-curl http://localhost:8000/api/v1/notification/health/
 curl http://localhost:8000/api/v1/notification/health/ready
 curl http://localhost:8000/api/v1/notification/health/live
 
 # Kubernetes (after deployment)
-curl http://notification-service.local/api/v1/notification/health/
+curl http://notification-service.local/api/v1/notification/health/ready
+curl http://notification-service.local/api/v1/notification/health/live
 ```
 
 ## Kubernetes Deployment
@@ -221,7 +215,9 @@ Remove all Kubernetes resources:
 
 After deployment, the service is accessible at:
 - **Ingress URL**: `http://notification-service.local/api/v1/notification/`
-- **Health Check**: `http://notification-service.local/api/v1/notification/health/`
+- **Health Checks**:
+  - Readiness: `http://notification-service.local/api/v1/notification/health/ready`
+  - Liveness: `http://notification-service.local/api/v1/notification/health/live`
 
 ### Kubernetes Resources
 

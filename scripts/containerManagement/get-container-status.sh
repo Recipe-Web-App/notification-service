@@ -158,9 +158,6 @@ if command_exists minikube && minikube status >/dev/null 2>&1; then
     if [ "$MINIKUBE_IP" != "unknown" ]; then
         echo -e "${PURPLE}🔍 Testing all health endpoints...${NC}"
 
-        # Test main health endpoint
-        test_endpoint "http://notification-service.local/api/v1/notification/health/" "General Health Endpoint" 5
-
         # Test readiness endpoint
         test_endpoint "http://notification-service.local/api/v1/notification/health/ready" "Readiness Probe" 3
 
@@ -280,7 +277,6 @@ if command_exists minikube && minikube status >/dev/null 2>&1; then
         print_status "ok" "/etc/hosts entry exists for notification-service.local"
         echo "🌍 Application URLs:"
         echo "   • API Base: http://notification-service.local/api/v1/notification"
-        echo "   • Health: http://notification-service.local/api/v1/notification/health/"
         echo "   • Ready: http://notification-service.local/api/v1/notification/health/ready"
         echo "   • Live: http://notification-service.local/api/v1/notification/health/live"
     else

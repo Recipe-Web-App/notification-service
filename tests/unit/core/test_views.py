@@ -5,21 +5,7 @@ from unittest.mock import Mock
 
 from rest_framework import status
 
-from core.views import HealthCheckView, LivenessCheckView, ReadinessCheckView
-
-
-class TestHealthCheckView(unittest.TestCase):
-    """Tests for HealthCheckView."""
-
-    def test_get_returns_ok_status_and_200(self):
-        """Test that GET returns {"status": "ok"} with 200 status code."""
-        view = HealthCheckView()
-        mock_request = Mock()
-
-        response = view.get(mock_request)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"status": "ok"})
+from core.views import LivenessCheckView, ReadinessCheckView
 
 
 class TestLivenessCheckView(unittest.TestCase):
