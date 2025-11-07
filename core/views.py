@@ -1431,6 +1431,97 @@ class NotificationRetryStatusView(APIView):
             raise
 
 
+class RetryNotificationView(APIView):
+    """View for retrying a single failed notification.
+
+    Endpoint: POST /notifications/{notification_id}/retry
+
+    Requires notification:admin scope.
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, notification_id):
+        """Retry a failed notification.
+
+        Args:
+            request: HTTP request
+            notification_id: UUID string of notification to retry
+
+        Returns:
+            202: Notification queued for retry
+            400: Invalid notification ID format
+            401: Not authenticated
+            403: Insufficient permissions (requires admin scope)
+            404: Notification not found
+            409: Cannot retry (wrong status or retries exhausted)
+            500: Server error
+        """
+        logger.info(
+            "Retry single notification request received",
+            user_id=request.user.user_id if request.user else None,
+            notification_id=notification_id,
+        )
+
+        # Check user has required scope (admin only)
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for retry notification",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": ("You do not have permission to perform this action"),
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Validate UUID format
+        try:
+            notification_id_uuid = UUID(notification_id)
+        except ValueError:
+            logger.warning(
+                "Invalid notification ID format for retry",
+                user_id=request.user.user_id,
+                notification_id=notification_id,
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid notification ID format",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Call admin service to retry the notification
+            result = admin_service.retry_single_notification(notification_id_uuid)
+
+            logger.info(
+                "Notification retry request successful",
+                user_id=request.user.user_id,
+                notification_id=str(notification_id_uuid),
+            )
+
+            return Response(result, status=status.HTTP_202_ACCEPTED)
+
+        except Exception as e:
+            logger.error(
+                "Error retrying notification",
+                error=str(e),
+                error_type=type(e).__name__,
+                user_id=request.user.user_id if request.user else None,
+                notification_id=notification_id,
+                exc_info=True,
+            )
+            # Let DRF exception handler handle it (Http404, ConflictError, etc.)
+            raise
+
+
 class TemplateListView(APIView):
     """API endpoint for listing available notification templates.
 

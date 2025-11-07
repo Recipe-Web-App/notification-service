@@ -2,14 +2,17 @@
 
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from django.core.cache import cache
 from django.db.models import Avg, Count, F, Q
+from django.http import Http404
 
 import structlog
 
 from core.auth.context import get_current_user, require_current_user
 from core.constants.templates import TEMPLATE_REGISTRY
+from core.exceptions.downstream_exceptions import ConflictError
 from core.models.notification import Notification
 from core.services.notification_service import notification_service
 
@@ -445,6 +448,92 @@ class AdminService:
             "failed_exhausted": failed_exhausted,
             "currently_queued": currently_queued,
             "safe_to_retry": safe_to_retry,
+        }
+
+    def retry_single_notification(self, notification_id: UUID) -> dict[str, Any]:
+        """Retry a single failed notification.
+
+        Args:
+            notification_id: UUID of the notification to retry
+
+        Returns:
+            Dict containing:
+            - notification_id: UUID of the notification
+            - status: Current status after queueing (should be "queued")
+            - message: Success message
+
+        Raises:
+            Http404: If notification with given ID doesn't exist
+            ConflictError: If notification cannot be retried (wrong status or
+                          retries exhausted)
+        """
+        current_user = require_current_user()
+
+        logger.info(
+            "retry_single_notification_called",
+            user_id=current_user.user_id,
+            notification_id=str(notification_id),
+        )
+
+        # Fetch the notification
+        try:
+            notification = Notification.objects.get(notification_id=notification_id)
+        except Notification.DoesNotExist as exc:
+            logger.warning(
+                "notification_not_found_for_retry",
+                user_id=current_user.user_id,
+                notification_id=str(notification_id),
+            )
+            raise Http404(f"Notification with ID {notification_id} not found") from exc
+
+        # Validate notification is in FAILED status
+        if notification.status != Notification.FAILED:
+            logger.warning(
+                "cannot_retry_notification_wrong_status",
+                user_id=current_user.user_id,
+                notification_id=str(notification_id),
+                current_status=notification.status,
+            )
+            raise ConflictError(
+                "Cannot retry notification that is not in failed status",
+                detail=f"Current status is '{notification.status}'",
+            )
+
+        # Check if notification can still be retried
+        if not notification.can_retry():
+            logger.warning(
+                "cannot_retry_notification_exhausted",
+                user_id=current_user.user_id,
+                notification_id=str(notification_id),
+                retry_count=notification.retry_count,
+                max_retries=notification.max_retries,
+            )
+            raise ConflictError(
+                "Cannot retry notification - retry limit exhausted",
+                detail=(
+                    f"Retry count ({notification.retry_count}) >= "
+                    f"max retries ({notification.max_retries})"
+                ),
+            )
+
+        # Clear error message before retry
+        notification.error_message = ""
+        notification.save(update_fields=["error_message"])
+
+        # Queue the notification for retry
+        notification_service.queue_notification(notification_id)
+
+        logger.info(
+            "notification_queued_for_retry",
+            user_id=current_user.user_id,
+            notification_id=str(notification_id),
+            retry_count=notification.retry_count,
+        )
+
+        return {
+            "notification_id": str(notification_id),
+            "status": "queued",
+            "message": "Notification queued for retry",
         }
 
     def get_all_templates(self) -> list[dict]:

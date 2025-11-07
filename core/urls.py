@@ -15,6 +15,7 @@ from .views import (
     RecipeLikedView,
     RecipePublishedView,
     RetryFailedNotificationsView,
+    RetryNotificationView,
     TemplateListView,
     UserNotificationListView,
     UserNotificationsByIdView,
@@ -73,7 +74,12 @@ urlpatterns = [
         NotificationRetryStatusView.as_view(),
         name="notification-retry-status",
     ),
-    # Notification management endpoints
+    # Notification management endpoints (specific routes before generic)
+    path(
+        "notifications/<str:notification_id>/retry",
+        RetryNotificationView.as_view(),
+        name="retry-notification",
+    ),
     path(
         "notifications/<str:notification_id>",
         NotificationDetailView.as_view(),

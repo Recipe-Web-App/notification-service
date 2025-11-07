@@ -6,9 +6,11 @@ from uuid import uuid4
 
 from django.core.cache import cache
 from django.db.models.signals import post_save
+from django.http import Http404
 from django.test import TestCase
 
 from core.auth.oauth2 import OAuth2User
+from core.exceptions.downstream_exceptions import ConflictError
 from core.models.notification import Notification
 from core.models.user import User
 from core.services.admin_service import AdminService
@@ -993,3 +995,210 @@ class TestAdminService(TestCase):
         templates = self.admin_service.get_all_templates()
 
         self.assertEqual(len(templates), 6)
+
+    # Tests for retry_single_notification
+
+    @patch("core.services.notification_service.notification_service.queue_notification")
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_single_notification_success(
+        self, mock_require_current_user, mock_get_current_user, mock_queue
+    ):
+        """Test retry_single_notification successfully retries a failed notification."""
+        # Create a failed notification
+        notification = Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed notification",
+            message="Test message",
+            status=Notification.FAILED,
+            retry_count=1,
+            max_retries=3,
+            error_message="SMTP connection failed",
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        result = self.admin_service.retry_single_notification(
+            notification.notification_id
+        )
+
+        # Verify result structure
+        self.assertEqual(result["notification_id"], str(notification.notification_id))
+        self.assertEqual(result["status"], "queued")
+        self.assertIn("retry", result["message"].lower())
+
+        # Verify error message was cleared
+        notification.refresh_from_db()
+        self.assertEqual(notification.error_message, "")
+
+        # Verify queue_notification was called
+        mock_queue.assert_called_once_with(notification.notification_id)
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_single_notification_not_found(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test retry_single_notification raises Http404 for non-existent ID."""
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        non_existent_id = uuid4()
+
+        with self.assertRaises(Http404) as context:
+            self.admin_service.retry_single_notification(non_existent_id)
+
+        self.assertIn(str(non_existent_id), str(context.exception))
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_single_notification_wrong_status(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test retry_single_notification raises ConflictError for non-failed."""
+
+        # Create a sent notification (not failed)
+        notification = Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Sent notification",
+            message="Test message",
+            status=Notification.SENT,
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        with self.assertRaises(ConflictError) as context:
+            self.admin_service.retry_single_notification(notification.notification_id)
+
+        self.assertIn("failed", str(context.exception).lower())
+        self.assertIn("sent", context.exception.detail.lower())
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_single_notification_exhausted_retries(
+        self, mock_require_current_user, mock_get_current_user
+    ):
+        """Test retry_single_notification raises ConflictError when exhausted."""
+
+        # Create a failed notification with exhausted retries
+        notification = Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed notification",
+            message="Test message",
+            status=Notification.FAILED,
+            retry_count=3,
+            max_retries=3,
+            error_message="Max retries exceeded",
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        with self.assertRaises(ConflictError) as context:
+            self.admin_service.retry_single_notification(notification.notification_id)
+
+        self.assertIn("exhausted", str(context.exception).lower())
+        self.assertIn("3", context.exception.detail)
+
+    @patch("core.services.notification_service.notification_service.queue_notification")
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_single_notification_clears_error_message(
+        self, mock_require_current_user, mock_get_current_user, mock_queue
+    ):
+        """Test retry_single_notification clears error message before retrying."""
+        # Create a failed notification with detailed error message
+        notification = Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed notification",
+            message="Test message",
+            status=Notification.FAILED,
+            retry_count=0,
+            max_retries=3,
+            error_message=(
+                "Detailed SMTP error: Connection timeout at server.example.com"
+            ),
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        # Verify error message exists before retry
+        self.assertNotEqual(notification.error_message, "")
+
+        self.admin_service.retry_single_notification(notification.notification_id)
+
+        # Verify error message was cleared
+        notification.refresh_from_db()
+        self.assertEqual(notification.error_message, "")
+
+    @patch("core.services.notification_service.notification_service.queue_notification")
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    def test_retry_single_notification_with_partial_retries(
+        self, mock_require_current_user, mock_get_current_user, mock_queue
+    ):
+        """Test retry_single_notification with partially retried notifications."""
+        # Create a failed notification that has been retried once
+        notification = Notification.objects.create(
+            recipient=self.user,
+            recipient_email=self.user.email,
+            subject="Failed notification",
+            message="Test message",
+            status=Notification.FAILED,
+            retry_count=2,
+            max_retries=5,
+            error_message="Previous retry failed",
+        )
+
+        admin_user = OAuth2User(
+            user_id=str(self.admin_user_id),
+            client_id="test-client",
+            scopes=["notification:admin"],
+        )
+        mock_require_current_user.return_value = admin_user
+        mock_get_current_user.return_value = admin_user
+
+        result = self.admin_service.retry_single_notification(
+            notification.notification_id
+        )
+
+        # Verify notification was queued
+        self.assertEqual(result["status"], "queued")
+        mock_queue.assert_called_once_with(notification.notification_id)
+
+        # Verify retry_count remains unchanged (it's incremented by the job processor)
+        notification.refresh_from_db()
+        self.assertEqual(notification.retry_count, 2)

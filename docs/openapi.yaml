@@ -480,8 +480,8 @@ paths:
         Retry sending a failed notification. Only available for notifications with status=failed.
         Requires **notification:admin** scope.
 
-        **⚠️ IMPLEMENTATION STATUS**: This endpoint is not yet implemented. Will return 404.
-        Use `POST /notifications/retry-failed` to retry multiple failed notifications instead.
+        This endpoint retries a single notification by ID. For bulk retry operations,
+        use `POST /notifications/retry-failed` instead.
       operationId: retryNotification
       security:
         - OAuth2: ["notification:admin"]
@@ -514,21 +514,39 @@ paths:
                 status: queued
                 message: "Notification queued for retry"
         '400':
-          description: Notification cannot be retried (not in failed status)
+          description: Invalid notification ID format
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: "bad_request"
-                message: "Cannot retry notification that is not in failed status"
-                detail: "Current status is 'sent'"
+                message: "Invalid notification ID format"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict - Cannot retry notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrong_status:
+                  summary: Notification not in failed status
+                  value:
+                    error: "conflict"
+                    message: "Cannot retry notification that is not in failed status"
+                    detail: "Current status is 'sent'"
+                exhausted_retries:
+                  summary: Retry limit exhausted
+                  value:
+                    error: "conflict"
+                    message: "Cannot retry notification - retry limit exhausted"
+                    detail: "Retry count (3) >= max retries (3)"
         '500':
           $ref: '#/components/responses/InternalServerError'
 
