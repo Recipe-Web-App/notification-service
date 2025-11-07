@@ -24,7 +24,7 @@ class TestNotificationStatsEndpoint(TestCase):
         self.client = Client()
         self.admin_id = uuid4()
         self.user_id = uuid4()
-        self.url = "/api/v1/notification/notifications/stats"
+        self.url = "/api/v1/notification/stats"
 
         # Disconnect signals to avoid side effects
         post_save.disconnect(send_welcome_email, sender=User)
