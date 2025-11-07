@@ -21,6 +21,34 @@ class FailedNotificationsBreakdown(BaseModel):
     )
 
 
+class RetryStatistics(BaseModel):
+    """Retry statistics for notifications."""
+
+    total_retried: int = Field(
+        ...,
+        description=(
+            "Total number of notifications that have been retried (retry_count > 0)"
+        ),
+    )
+    currently_retrying: int = Field(
+        ..., description="Number of FAILED notifications that can still be retried"
+    )
+    exhausted_retries: int = Field(
+        ..., description="Number of FAILED notifications that have exhausted retries"
+    )
+    average_retries_before_success: float = Field(
+        ..., description="Average retry_count for successfully sent notifications"
+    )
+    retry_success_rate: float = Field(
+        ...,
+        description=(
+            "Success rate for retried notifications (sent with retries / total retried)"
+        ),
+        ge=0.0,
+        le=1.0,
+    )
+
+
 class DateRange(BaseModel):
     """Date range for statistics."""
 
@@ -53,6 +81,9 @@ class NotificationStats(BaseModel):
     )
     failed_notifications: FailedNotificationsBreakdown = Field(
         ..., description="Breakdown of failed notifications"
+    )
+    retry_statistics: RetryStatistics = Field(
+        ..., description="Statistics about notification retries"
     )
     date_range: DateRange = Field(
         ..., description="Date range covered by these statistics"
