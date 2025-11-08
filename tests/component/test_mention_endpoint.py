@@ -27,13 +27,13 @@ class TestMentionEndpoint(TestCase):
         self.url = "/api/v1/notification/notifications/mention"
 
         # Test data
-        self.comment_id = uuid4()
+        self.comment_id = 456
         self.commenter_id = uuid4()
         self.recipe_id = 123
         self.recipient_ids = [uuid4()]
 
         self.request_data = {
-            "comment_id": str(self.comment_id),
+            "comment_id": self.comment_id,
             "recipient_ids": [str(rid) for rid in self.recipient_ids],
         }
 

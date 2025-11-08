@@ -59,11 +59,11 @@ class UserNotFoundError(DownstreamServiceError):
 class CommentNotFoundError(DownstreamServiceError):
     """Comment not found in recipe-management service (404)."""
 
-    def __init__(self, comment_id: str):
+    def __init__(self, comment_id: int):
         """Initialize comment not found error.
 
         Args:
-            comment_id: ID of the comment that was not found
+            comment_id: ID of the comment that was not found (integer)
         """
         self.comment_id = comment_id
         super().__init__(

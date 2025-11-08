@@ -27,19 +27,19 @@ class TestRecipeLikedEndpoint(TestCase):
         self.url = "/api/v1/notification/notifications/recipe-liked"
 
         # Test data
-        self.recipe_id = uuid4()
+        self.recipe_id = 123
         self.liker_id = uuid4()
         self.recipient_ids = [uuid4(), uuid4()]
 
         self.request_data = {
-            "recipe_id": str(self.recipe_id),
+            "recipe_id": self.recipe_id,
             "liker_id": str(self.liker_id),
             "recipient_ids": [str(rid) for rid in self.recipient_ids],
         }
 
         # Mock recipe
         self.mock_recipe = RecipeDto(
-            recipe_id=123,
+            recipe_id=self.recipe_id,
             user_id=uuid4(),
             title="Test Recipe",
             servings=Decimal("4"),

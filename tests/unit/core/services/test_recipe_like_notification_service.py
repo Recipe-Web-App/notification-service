@@ -40,7 +40,7 @@ class TestRecipeLikedNotifications(TestCase):
 
         self.recipe_liked_request = RecipeLikedRequest(
             recipient_ids=[uuid4(), uuid4()],
-            recipe_id=uuid4(),
+            recipe_id=123,
             liker_id=uuid4(),
         )
 
@@ -303,7 +303,7 @@ class TestRecipeLikedNotifications(TestCase):
         # Create request with 3 recipients
         request = RecipeLikedRequest(
             recipient_ids=[uuid4(), uuid4(), uuid4()],
-            recipe_id=uuid4(),
+            recipe_id=123,
             liker_id=uuid4(),
         )
 

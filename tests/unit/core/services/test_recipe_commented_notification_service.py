@@ -40,11 +40,11 @@ class TestRecipeCommentedNotifications(TestCase):
 
         self.recipe_commented_request = RecipeCommentedRequest(
             recipient_ids=[uuid4(), uuid4()],
-            comment_id=uuid4(),
+            comment_id=456,
         )
 
         self.mock_comment = CommentDto(
-            comment_id=uuid4(),
+            comment_id=456,
             recipe_id=123,
             user_id=uuid4(),
             comment_text="This recipe looks delicious! I can't wait to try it.",
@@ -103,7 +103,7 @@ class TestRecipeCommentedNotifications(TestCase):
 
         # Verify comment was fetched
         mock_recipe_client.get_comment.assert_called_once_with(
-            str(self.recipe_commented_request.comment_id)
+            self.recipe_commented_request.comment_id
         )
 
         # Verify recipe was fetched

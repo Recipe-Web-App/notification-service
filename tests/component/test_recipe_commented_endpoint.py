@@ -27,11 +27,11 @@ class TestRecipeCommentedEndpoint(TestCase):
         self.url = "/api/v1/notification/notifications/recipe-commented"
 
         # Test data
-        self.comment_id = uuid4()
+        self.comment_id = 456
         self.recipient_ids = [uuid4(), uuid4()]
 
         self.request_data = {
-            "comment_id": str(self.comment_id),
+            "comment_id": self.comment_id,
             "recipient_ids": [str(rid) for rid in self.recipient_ids],
         }
 

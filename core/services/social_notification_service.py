@@ -216,9 +216,7 @@ class SocialNotificationService:
 
         # Fetch comment details (includes recipe_id, user_id, comment_text)
         try:
-            comment = recipe_management_service_client.get_comment(
-                str(request.comment_id)
-            )
+            comment = recipe_management_service_client.get_comment(request.comment_id)
         except CommentNotFoundError:
             logger.warning(
                 "Comment not found",

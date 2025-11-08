@@ -14,10 +14,10 @@ class RecipeCommentedRequest(BaseModel):
         max_length=100,
         description="List of recipient user IDs (typically the recipe author)",
     )
-    comment_id: UUID = Field(
+    comment_id: int = Field(
         ...,
         description=(
-            "UUID of the comment. Service will fetch comment details "
+            "ID of the comment. Service will fetch comment details "
             "(including recipe_id and commenter info) from recipe-management-service."
         ),
     )

@@ -400,7 +400,7 @@ class TestMentionNotifications(TestCase):
             scopes=["notification:user"],
         )
 
-        self.comment_id = uuid4()
+        self.comment_id = 456
         self.commenter_id = uuid4()
         self.recipe_id = 123
         self.recipient_id = uuid4()
@@ -482,7 +482,7 @@ class TestMentionNotifications(TestCase):
         self.assertEqual(response.message, "Notifications queued successfully")
 
         # Verify comment was fetched
-        mock_recipe_client.get_comment.assert_called_once_with(str(self.comment_id))
+        mock_recipe_client.get_comment.assert_called_once_with(self.comment_id)
 
         # Verify users were fetched
         self.assertEqual(mock_user_client.get_user.call_count, 2)
