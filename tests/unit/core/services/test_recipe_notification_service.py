@@ -40,7 +40,7 @@ class TestRecipeNotificationService(TestCase):
 
         self.recipe_published_request = RecipePublishedRequest(
             recipient_ids=[uuid4(), uuid4()],
-            recipe_id=uuid4(),
+            recipe_id=123,
         )
 
         self.mock_recipe = RecipeDto(

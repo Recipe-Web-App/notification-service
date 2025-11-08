@@ -19,7 +19,7 @@ class CommentDto(BaseModel):
     )
 
     # Required fields
-    comment_id: UUID = Field(
+    comment_id: int = Field(
         ..., alias="commentId", description="Unique comment identifier"
     )
     recipe_id: int = Field(
@@ -39,6 +39,6 @@ class CommentDto(BaseModel):
     updated_at: datetime | None = Field(
         None, alias="updatedAt", description="Last update timestamp"
     )
-    parent_comment_id: UUID | None = Field(
+    parent_comment_id: int | None = Field(
         None, alias="parentCommentId", description="Parent comment ID for replies"
     )

@@ -78,11 +78,11 @@ class RecipeManagementServiceClient(BaseDownstreamClient):
             )
             raise
 
-    def get_comment(self, comment_id: str) -> CommentDto:
+    def get_comment(self, comment_id: int) -> CommentDto:
         """Fetch comment by ID from recipe-management service.
 
         Args:
-            comment_id: Unique comment identifier (UUID)
+            comment_id: Unique comment identifier (integer)
 
         Returns:
             CommentDto object with comment data

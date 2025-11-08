@@ -95,7 +95,7 @@ paths:
               recipient_ids:
                 - 550e8400-e29b-41d4-a716-446655440001
                 - 550e8400-e29b-41d4-a716-446655440002
-              recipe_id: 660e8400-e29b-41d4-a716-446655440099
+              recipe_id: 123
       responses:
         '202':
           description: Notifications queued successfully
@@ -157,7 +157,7 @@ paths:
             example:
               recipient_ids:
                 - 550e8400-e29b-41d4-a716-446655440001
-              recipe_id: 660e8400-e29b-41d4-a716-446655440099
+              recipe_id: 123
               liker_id: 550e8400-e29b-41d4-a716-446655440002
       responses:
         '202':
@@ -199,7 +199,7 @@ paths:
             example:
               recipient_ids:
                 - 550e8400-e29b-41d4-a716-446655440001
-              comment_id: 880e8400-e29b-41d4-a716-446655440123
+              comment_id: 456
       responses:
         '202':
           description: Notification queued successfully
@@ -282,7 +282,7 @@ paths:
             example:
               recipient_ids:
                 - 550e8400-e29b-41d4-a716-446655440001
-              comment_id: 880e8400-e29b-41d4-a716-446655440123
+              comment_id: 456
       responses:
         '202':
           description: Notification queued successfully
@@ -1045,9 +1045,9 @@ components:
           maxItems: 100
           description: List of recipient user IDs (max 100)
         recipe_id:
-          type: string
-          format: uuid
-          description: UUID of the published recipe. Service will fetch recipe details and author info from recipe-management-service.
+          type: integer
+          format: int64
+          description: ID of the published recipe. Service will fetch recipe details and author info from recipe-management-service.
 
     RecipeLikedRequest:
       type: object
@@ -1065,9 +1065,9 @@ components:
           maxItems: 100
           description: List of recipient user IDs (typically the recipe author)
         recipe_id:
-          type: string
-          format: uuid
-          description: UUID of the liked recipe. Service will fetch recipe details from recipe-management-service.
+          type: integer
+          format: int64
+          description: ID of the liked recipe. Service will fetch recipe details from recipe-management-service.
         liker_id:
           type: string
           format: uuid
@@ -1088,9 +1088,9 @@ components:
           maxItems: 100
           description: List of recipient user IDs (typically the recipe author)
         comment_id:
-          type: string
-          format: uuid
-          description: UUID of the comment. Service will fetch comment details (including recipe_id and commenter info) from recipe-management-service.
+          type: integer
+          format: int64
+          description: ID of the comment. Service will fetch comment details (including recipe_id and commenter info) from recipe-management-service.
 
     NewFollowerRequest:
       type: object
@@ -1126,9 +1126,9 @@ components:
           maxItems: 100
           description: List of recipient user IDs (users mentioned in comment)
         comment_id:
-          type: string
-          format: uuid
-          description: UUID of the comment containing the mention. Service will fetch comment details (including commenter/mentioner info, context, recipe_id) from recipe-management-service.
+          type: integer
+          format: int64
+          description: ID of the comment containing the mention. Service will fetch comment details (including commenter/mentioner info, context, recipe_id) from recipe-management-service.
 
     PasswordResetRequest:
       type: object

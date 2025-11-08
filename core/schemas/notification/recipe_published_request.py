@@ -14,10 +14,10 @@ class RecipePublishedRequest(BaseModel):
         max_length=100,
         description="List of recipient user IDs (max 100)",
     )
-    recipe_id: UUID = Field(
+    recipe_id: int = Field(
         ...,
         description=(
-            "UUID of the published recipe. Service will fetch recipe "
+            "ID of the published recipe. Service will fetch recipe "
             "details from recipe-management-service."
         ),
     )

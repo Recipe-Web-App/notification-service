@@ -55,7 +55,7 @@ class RecipeNotificationService:
 
         # Fetch recipe details from recipe-management service
         try:
-            recipe = recipe_management_service_client.get_recipe(int(request.recipe_id))
+            recipe = recipe_management_service_client.get_recipe(request.recipe_id)
         except RecipeNotFoundError:
             logger.warning(
                 "Recipe not found",
@@ -195,7 +195,7 @@ class RecipeNotificationService:
 
         # Fetch recipe details from recipe-management service
         try:
-            recipe = recipe_management_service_client.get_recipe(int(request.recipe_id))
+            recipe = recipe_management_service_client.get_recipe(request.recipe_id)
         except RecipeNotFoundError:
             logger.warning(
                 "Recipe not found",
@@ -330,9 +330,7 @@ class RecipeNotificationService:
 
         # Fetch comment details from recipe-management service
         try:
-            comment = recipe_management_service_client.get_comment(
-                str(request.comment_id)
-            )
+            comment = recipe_management_service_client.get_comment(request.comment_id)
         except CommentNotFoundError:
             logger.warning(
                 "Comment not found",
