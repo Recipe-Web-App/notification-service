@@ -344,6 +344,86 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /notifications/welcome:
+    post:
+      tags:
+        - System Notifications
+      summary: Send welcome email to new users
+      description: |
+        Sends welcome email to newly registered users.
+        Requires **service-to-service authentication** (client_credentials grant) - typically called by user-management-service when a new user registers.
+
+        **Authorization**: This endpoint only accepts service-to-service authentication where user_id equals client_id (client_credentials grant type).
+        Regular user authentication (even with admin scope) will be rejected with 403 Forbidden.
+
+        The service fetches user details (email, username, full_name) from user-management-service and constructs app URLs using FRONTEND_BASE_URL configuration.
+
+        **Batch Support**: Supports multiple recipients for bulk welcome operations (e.g., data migrations, bulk user imports).
+      operationId: notifyWelcome
+      security:
+        - OAuth2: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WelcomeRequest'
+            examples:
+              single_user:
+                summary: Welcome single user
+                value:
+                  recipient_ids:
+                    - 550e8400-e29b-41d4-a716-446655440001
+              batch_users:
+                summary: Welcome multiple users (bulk operation)
+                value:
+                  recipient_ids:
+                    - 550e8400-e29b-41d4-a716-446655440001
+                    - 550e8400-e29b-41d4-a716-446655440002
+                    - 550e8400-e29b-41d4-a716-446655440003
+      responses:
+        '202':
+          description: Notifications queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+              example:
+                notifications:
+                  - notification_id: 770e8400-e29b-41d4-a716-446655440111
+                    recipient_id: 550e8400-e29b-41d4-a716-446655440001
+                  - notification_id: 770e8400-e29b-41d4-a716-446655440112
+                    recipient_id: 550e8400-e29b-41d4-a716-446655440002
+                queued_count: 2
+                message: "Notifications queued successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - requires service-to-service authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: forbidden
+                message: You do not have permission to perform this action
+                detail: "Welcome notifications require service-to-service authentication"
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: not_found
+                message: User not found
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # Notification Management Endpoints
   /notifications/{notificationId}:
     get:
@@ -949,6 +1029,11 @@ paths:
                     description: Send password reset link
                     required_fields: [recipient_ids, reset_token, expiry_hours]
                     endpoint: /notifications/password-reset
+                  - template_type: welcome
+                    display_name: Welcome
+                    description: Send welcome email to newly registered users
+                    required_fields: [recipient_ids]
+                    endpoint: /notifications/welcome
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1154,6 +1239,19 @@ components:
           minimum: 1
           maximum: 72
           description: Number of hours until token expires
+
+    WelcomeRequest:
+      type: object
+      required:
+        - recipient_ids
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          description: List of recipient user IDs (newly registered users). Service will fetch user details (email, username, full_name) from user-management-service. Supports batch operations for bulk user imports.
 
     # Response Schemas
     BatchNotificationResponse:

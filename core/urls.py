@@ -19,6 +19,7 @@ from .views import (
     TemplateListView,
     UserNotificationListView,
     UserNotificationsByIdView,
+    WelcomeView,
 )
 
 urlpatterns = [
@@ -57,6 +58,11 @@ urlpatterns = [
         "notifications/password-reset",
         PasswordResetView.as_view(),
         name="password-reset",
+    ),
+    path(
+        "notifications/welcome",
+        WelcomeView.as_view(),
+        name="welcome",
     ),
     # Admin endpoints (must come before notifications/<notification_id>)
     path(
