@@ -25,6 +25,7 @@ from core.schemas.notification.template_info import (
     TemplateInfo,
     TemplateListResponse,
 )
+from core.schemas.notification.welcome_request import WelcomeRequest
 
 __all__ = [
     "BatchNotificationResponse",
@@ -42,4 +43,5 @@ __all__ = [
     "RecipePublishedRequest",
     "TemplateInfo",
     "TemplateListResponse",
+    "WelcomeRequest",
 ]

@@ -22,6 +22,7 @@ from core.schemas.notification import (
     RecipeLikedRequest,
     RecipePublishedRequest,
     TemplateListResponse,
+    WelcomeRequest,
 )
 from core.services import health_service
 from core.services.admin_service import admin_service
@@ -633,6 +634,75 @@ class PasswordResetView(APIView):
 
             logger.info(
                 "Password reset notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (UserNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class WelcomeView(APIView):
+    """API endpoint for sending welcome notifications to new users.
+
+    Sends email notifications to welcome newly registered users.
+    Requires service-to-service authentication (client_credentials grant).
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send welcome notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if not service-to-service authentication
+            404 Not Found if recipient user doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Welcome notification request received",
+            client_id=request.user.client_id if request.user else None,
+        )
+
+        # Validate request body with Pydantic
+        try:
+            welcome_request = WelcomeRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for welcome notification",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications
+        try:
+            response_data = system_notification_service.send_welcome_notifications(
+                request=welcome_request,
+            )
+
+            logger.info(
+                "Welcome notifications queued successfully",
                 queued_count=response_data.queued_count,
             )
 
