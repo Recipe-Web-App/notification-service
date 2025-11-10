@@ -40,7 +40,7 @@ test-coverage = "tests.run_tests:run_coverage"
 
 [tool.poetry.group.dev.dependencies]
 # Pre-commit
-pre-commit = "^4.3.0"
+pre-commit = "^4.4.0"
 
 # Linting and Formatting
 ruff = "^0.14.4"
@@ -65,7 +65,7 @@ django-upgrade = "^1.15.0"
 coverage = "^7.11.3"
 
 # Commit messages
-commitizen = "^4.9.1"
+commitizen = "^4.10.0"
 
 [tool.poetry.group.test.dependencies]
 # Testing frameworks
