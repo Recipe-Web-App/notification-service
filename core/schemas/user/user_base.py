@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class UserBase(BaseModel):
+class UserBase(BaseSchemaModel):
     """Base user schema with essential user information.
 
     Used for basic user identification and contact information,
@@ -13,7 +15,6 @@ class UserBase(BaseModel):
     """
 
     model_config = ConfigDict(
-        from_attributes=True,
         json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",

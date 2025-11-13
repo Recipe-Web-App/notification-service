@@ -1,18 +1,12 @@
 """Schema for batch notification response."""
 
-from uuid import UUID
+from pydantic import Field
 
-from pydantic import BaseModel, Field
-
-
-class NotificationCreated(BaseModel):
-    """Schema for individual notification in batch response."""
-
-    notification_id: UUID = Field(..., description="UUID of the created notification")
-    recipient_id: UUID = Field(..., description="UUID of the recipient user")
+from core.schemas.base_schema_model import BaseSchemaModel
+from core.schemas.notification.notification_created import NotificationCreated
 
 
-class BatchNotificationResponse(BaseModel):
+class BatchNotificationResponse(BaseSchemaModel):
     """Response schema for batch notification requests."""
 
     notifications: list[NotificationCreated] = Field(

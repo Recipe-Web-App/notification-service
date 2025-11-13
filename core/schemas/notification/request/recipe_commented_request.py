@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class RecipeCommentedRequest(BaseModel):
+class RecipeCommentedRequest(BaseSchemaModel):
     """Request schema for recipe commented notifications."""
 
     recipient_ids: list[UUID] = Field(

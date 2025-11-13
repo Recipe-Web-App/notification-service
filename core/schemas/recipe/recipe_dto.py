@@ -2,33 +2,20 @@
 
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
+
+from core.enums.difficulty_level import DifficultyLevel
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class DifficultyLevel(str, Enum):
-    """Recipe difficulty levels."""
-
-    BEGINNER = "BEGINNER"
-    EASY = "EASY"
-    MEDIUM = "MEDIUM"
-    HARD = "HARD"
-    EXPERT = "EXPERT"
-
-
-class RecipeDto(BaseModel):
+class RecipeDto(BaseSchemaModel):
     """Recipe data transfer object from recipe-management service.
 
     This schema matches the GET /recipes/{recipeId} response.
     Includes required fields and commonly used optional fields.
     """
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        use_enum_values=False,
-    )
 
     # Required fields
     recipe_id: int = Field(

@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class PasswordResetRequest(BaseModel):
+class PasswordResetRequest(BaseSchemaModel):
     """Request schema for notifying users about password reset.
 
     Attributes:
@@ -14,6 +16,16 @@ class PasswordResetRequest(BaseModel):
         reset_token: Secure reset token (minimum 20 characters).
         expiry_hours: Number of hours until token expires (1-72).
     """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "recipient_ids": ["550e8400-e29b-41d4-a716-446655440001"],
+                "reset_token": "abc123def456ghi789jkl",
+                "expiry_hours": 24,
+            }
+        }
+    )
 
     recipient_ids: list[UUID] = Field(
         ...,
@@ -32,13 +44,3 @@ class PasswordResetRequest(BaseModel):
         le=72,
         description="Number of hours until token expires",
     )
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "recipient_ids": ["550e8400-e29b-41d4-a716-446655440001"],
-                "reset_token": "abc123def456ghi789jkl",
-                "expiry_hours": 24,
-            }
-        }
-    }
