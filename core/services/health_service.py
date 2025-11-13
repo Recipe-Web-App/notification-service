@@ -10,9 +10,9 @@ from django.db.utils import OperationalError
 from core.enums import HealthStatus
 from core.schemas.health import (
     DependencyHealth,
-    LivenessResponse,
-    ReadinessResponse,
 )
+from core.schemas.health.response.liveness_response import LivenessResponse
+from core.schemas.health.response.readiness_response import ReadinessResponse
 from core.services.database_monitor import DatabaseMonitor
 
 logger = logging.getLogger(__name__)

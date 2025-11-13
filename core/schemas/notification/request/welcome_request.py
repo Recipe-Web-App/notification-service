@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class WelcomeRequest(BaseModel):
+class WelcomeRequest(BaseSchemaModel):
     """Request schema for sending welcome notifications to new users.
 
     This schema validates requests for sending welcome emails to newly

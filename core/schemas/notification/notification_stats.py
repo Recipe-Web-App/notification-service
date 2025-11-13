@@ -1,66 +1,17 @@
 """Schema for notification statistics."""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
+from core.schemas.notification.date_range import DateRange
+from core.schemas.notification.failed_notifications_breakdown import (
+    FailedNotificationsBreakdown,
+)
+from core.schemas.notification.retry_statistics import RetryStatistics
+from core.schemas.notification.status_breakdown import StatusBreakdown
 
 
-class StatusBreakdown(BaseModel):
-    """Breakdown of notifications by status."""
-
-    pending: int = Field(..., description="Number of pending notifications")
-    queued: int = Field(..., description="Number of queued notifications")
-    sent: int = Field(..., description="Number of sent notifications")
-    failed: int = Field(..., description="Number of failed notifications")
-
-
-class FailedNotificationsBreakdown(BaseModel):
-    """Breakdown of failed notifications."""
-
-    total: int = Field(..., description="Total number of failed notifications")
-    by_error_type: dict[str, int] = Field(
-        ..., description="Count of failures by error type"
-    )
-
-
-class RetryStatistics(BaseModel):
-    """Retry statistics for notifications."""
-
-    total_retried: int = Field(
-        ...,
-        description=(
-            "Total number of notifications that have been retried (retry_count > 0)"
-        ),
-    )
-    currently_retrying: int = Field(
-        ..., description="Number of FAILED notifications that can still be retried"
-    )
-    exhausted_retries: int = Field(
-        ..., description="Number of FAILED notifications that have exhausted retries"
-    )
-    average_retries_before_success: float = Field(
-        ..., description="Average retry_count for successfully sent notifications"
-    )
-    retry_success_rate: float = Field(
-        ...,
-        description=(
-            "Success rate for retried notifications (sent with retries / total retried)"
-        ),
-        ge=0.0,
-        le=1.0,
-    )
-
-
-class DateRange(BaseModel):
-    """Date range for statistics."""
-
-    start: str | None = Field(
-        None, description="Start date in ISO 8601 format (or null if no data)"
-    )
-    end: str | None = Field(
-        None, description="End date in ISO 8601 format (or null if no data)"
-    )
-
-
-class NotificationStats(BaseModel):
+class NotificationStats(BaseSchemaModel):
     """Schema for comprehensive notification statistics.
 
     Matches the OpenAPI specification for GET /notifications/stats endpoint.

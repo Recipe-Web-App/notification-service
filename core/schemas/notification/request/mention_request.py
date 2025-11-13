@@ -2,10 +2,12 @@
 
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class MentionRequest(BaseModel):
+class MentionRequest(BaseSchemaModel):
     """Request schema for notifying users when mentioned in comments.
 
     Attributes:
@@ -14,6 +16,15 @@ class MentionRequest(BaseModel):
         comment_id: ID of the comment containing the mention.
     """
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "recipient_ids": ["550e8400-e29b-41d4-a716-446655440001"],
+                "comment_id": 123,
+            }
+        }
+    )
+
     recipient_ids: list[UUID] = Field(
         ...,
         min_length=1,
@@ -21,12 +32,3 @@ class MentionRequest(BaseModel):
         description="List of recipient user IDs (max 100)",
     )
     comment_id: int = Field(..., description="ID of the comment containing the mention")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "recipient_ids": ["550e8400-e29b-41d4-a716-446655440001"],
-                "comment_id": 123,
-            }
-        }
-    }

@@ -3,20 +3,17 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class CommentDto(BaseModel):
+class CommentDto(BaseSchemaModel):
     """Comment data transfer object from recipe-management service.
 
     This schema matches the GET /comments/{commentId} response.
     Includes comment details needed for notifications.
     """
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        use_enum_values=False,
-    )
 
     # Required fields
     comment_id: int = Field(

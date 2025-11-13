@@ -3,10 +3,12 @@
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import EmailStr, Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class NotificationCreate(BaseModel):
+class NotificationCreate(BaseSchemaModel):
     """Schema for creating a new notification."""
 
     recipient_email: EmailStr = Field(..., description="Email address for delivery")

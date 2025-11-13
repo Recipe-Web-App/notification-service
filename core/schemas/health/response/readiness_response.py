@@ -1,11 +1,12 @@
 """Readiness response schema."""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from core.schemas.base_schema_model import BaseSchemaModel
 from core.schemas.health.dependency_health import DependencyHealth
 
 
-class ReadinessResponse(BaseModel):
+class ReadinessResponse(BaseSchemaModel):
     """Response model for readiness checks."""
 
     ready: bool = Field(..., description="Service is ready to serve requests")

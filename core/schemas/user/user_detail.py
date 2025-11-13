@@ -4,17 +4,16 @@ from datetime import datetime
 
 from pydantic import ConfigDict, Field
 
-from core.schemas.user.user_base import UserBase
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class UserDetail(UserBase):
+class UserDetail(BaseSchemaModel):
     """Extended user schema with full user profile information.
 
     Includes all fields from UserBase plus additional profile details.
     """
 
     model_config = ConfigDict(
-        from_attributes=True,
         json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",

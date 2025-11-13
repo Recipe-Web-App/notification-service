@@ -3,17 +3,17 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class UserSearchResult(BaseModel):
+class UserSearchResult(BaseSchemaModel):
     """User search result data transfer object from user-management service.
 
     This schema matches the GET /user-management/users/{user_id} response.
     Represents public profile information for a user.
     """
-
-    model_config = ConfigDict(populate_by_name=True)
 
     # Required fields
     user_id: UUID = Field(
