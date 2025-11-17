@@ -1,0 +1,53 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Congratulations! Your recipe is featured: {{ recipe_title }}{% endblock %}
+
+{% block header %}Your Recipe is Featured!{% endblock %}
+
+{% block content %}
+<h2>Congratulations, {{ recipient_name }}!</h2>
+
+<p style="font-size: 16px; color: #2c3e50;">
+    <strong>Great news!</strong> Your recipe has been featured on our platform!
+</p>
+
+<div style="background-color: #fff8e1; padding: 25px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #FFC107;">
+    <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 22px;">{{ recipe_title }}</h3>
+
+    {% if featured_reason %}
+    <div style="background-color: #fffaec; padding: 15px; border-radius: 6px; margin: 15px 0;">
+        <p style="margin: 0; color: #E65100; font-weight: bold; font-size: 15px;">
+            {{ featured_reason }}
+        </p>
+    </div>
+    {% endif %}
+
+    <p style="margin: 15px 0 0 0; color: #666; font-size: 14px;">
+        This means your recipe will get increased visibility and be showcased to thousands of food enthusiasts on our platform!
+    </p>
+</div>
+
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+    <p style="margin: 0 0 10px 0; color: #666; font-size: 14px;">
+        <strong>What does this mean?</strong>
+    </p>
+    <ul style="text-align: left; margin: 10px 0; padding-left: 20px; color: #666; font-size: 14px;">
+        <li>Your recipe will be prominently displayed on our homepage</li>
+        <li>Increased visibility to our community</li>
+        <li>Recognition of your culinary creativity and expertise</li>
+        <li>More engagement from food lovers</li>
+    </ul>
+</div>
+
+<p style="text-align: center; margin-top: 30px;">
+    <a href="{{ recipe_url }}" class="button" style="background-color: #FFC107;">View Your Featured Recipe</a>
+</p>
+
+<p style="color: #666666; font-size: 14px; margin-top: 30px; text-align: center;">
+    Thank you for sharing your amazing recipes with our community!
+</p>
+
+<p style="color: #999999; font-size: 12px; margin-top: 20px; font-style: italic; text-align: center;">
+    You received this because your recipe was selected for featuring by our editorial team.
+</p>
+{% endblock %}

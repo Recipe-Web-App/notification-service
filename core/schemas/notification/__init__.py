@@ -16,6 +16,9 @@ from core.schemas.notification.request.recipe_collected_request import (
 from core.schemas.notification.request.recipe_commented_request import (
     RecipeCommentedRequest,
 )
+from core.schemas.notification.request.recipe_featured_request import (
+    RecipeFeaturedRequest,
+)
 from core.schemas.notification.request.recipe_liked_request import RecipeLikedRequest
 from core.schemas.notification.request.recipe_published_request import (
     RecipePublishedRequest,
@@ -49,6 +52,7 @@ __all__ = [
     "PasswordResetRequest",
     "RecipeCollectedRequest",
     "RecipeCommentedRequest",
+    "RecipeFeaturedRequest",
     "RecipeLikedRequest",
     "RecipePublishedRequest",
     "RecipeRatedRequest",

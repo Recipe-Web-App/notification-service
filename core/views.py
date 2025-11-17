@@ -20,6 +20,7 @@ from core.schemas.notification import (
     PasswordResetRequest,
     RecipeCollectedRequest,
     RecipeCommentedRequest,
+    RecipeFeaturedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
     RecipeRatedRequest,
@@ -659,6 +660,94 @@ class RecipeRatedView(APIView):
         except Exception:
             # Let DRF exception handler handle it
             # (RecipeNotFoundError, UserNotFoundError, ValueError, etc.)
+            raise
+
+
+class RecipeFeaturedView(APIView):
+    """API endpoint for sending recipe featured notifications.
+
+    Sends email notification when a recipe is featured by the platform.
+    Requires notification:admin scope only (system-generated notification).
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send recipe featured notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids, recipe_id,
+                and optional featured_reason
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks notification:admin scope
+            404 Not Found if recipe or user doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Recipe featured notification request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has admin scope (admin only)
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required admin scope for recipe featured notifications",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": ("You do not have permission to perform this action"),
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Validate request body with Pydantic
+        try:
+            recipe_featured_request = RecipeFeaturedRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for recipe featured notification",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications
+        try:
+            response_data = (
+                recipe_notification_service.send_recipe_featured_notifications(
+                    request=recipe_featured_request,
+                )
+            )
+
+            logger.info(
+                "Recipe featured notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (RecipeNotFoundError, UserNotFoundError, etc.)
             raise
 
 
