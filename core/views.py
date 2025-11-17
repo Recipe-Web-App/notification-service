@@ -21,6 +21,7 @@ from core.schemas.notification import (
     RecipeCommentedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
+    RecipeSharedRequest,
     TemplateListResponse,
     WelcomeRequest,
 )
@@ -379,6 +380,99 @@ class RecipeCommentedView(APIView):
         except Exception:
             # Let DRF exception handler handle it
             # (CommentNotFoundError, RecipeNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class RecipeSharedView(APIView):
+    """API endpoint for sending recipe shared notifications.
+
+    Sends email notification to recipients when a recipe is shared.
+    Privacy-aware: sharer identity revealed only if they follow recipe author.
+    Requires notification:user or notification:admin scope.
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send recipe shared notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids,
+                recipe_id, optional sharer_id, and optional share_message
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks required scope or permissions
+            404 Not Found if recipe or sharer doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Recipe shared notification request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has required scope
+        if not request.user.has_scope(
+            "notification:user"
+        ) and not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for recipe notifications",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": ("You do not have permission to perform this action"),
+                    "detail": (
+                        "Requires notification:user or notification:admin scope"
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Validate request body with Pydantic
+        try:
+            recipe_shared_request = RecipeSharedRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for recipe shared notification",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications
+        try:
+            response_data = (
+                recipe_notification_service.send_recipe_shared_notifications(
+                    request=recipe_shared_request,
+                )
+            )
+
+            logger.info(
+                "Recipe shared notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (RecipeNotFoundError, PermissionDenied, etc.)
             raise
 
 
