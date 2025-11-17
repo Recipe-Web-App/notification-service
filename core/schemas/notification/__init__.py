@@ -10,6 +10,9 @@ from core.schemas.notification.request.new_follower_request import NewFollowerRe
 from core.schemas.notification.request.password_reset_request import (
     PasswordResetRequest,
 )
+from core.schemas.notification.request.recipe_collected_request import (
+    RecipeCollectedRequest,
+)
 from core.schemas.notification.request.recipe_commented_request import (
     RecipeCommentedRequest,
 )
@@ -43,6 +46,7 @@ __all__ = [
     "NotificationListResponse",
     "NotificationStats",
     "PasswordResetRequest",
+    "RecipeCollectedRequest",
     "RecipeCommentedRequest",
     "RecipeLikedRequest",
     "RecipePublishedRequest",

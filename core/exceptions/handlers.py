@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
 from core.exceptions.downstream_exceptions import (
+    CollectionNotFoundError,
     CommentNotFoundError,
     ConflictError,
     RecipeNotFoundError,
@@ -52,7 +53,13 @@ def custom_exception_handler(
     # If DRF didn't handle it, handle Django exceptions and custom exceptions
     if response is None:
         if isinstance(
-            exc, (CommentNotFoundError, RecipeNotFoundError, UserNotFoundError)
+            exc,
+            (
+                CollectionNotFoundError,
+                CommentNotFoundError,
+                RecipeNotFoundError,
+                UserNotFoundError,
+            ),
         ):
             response_data = _create_error_response(
                 status_code=status.HTTP_404_NOT_FOUND,

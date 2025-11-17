@@ -1,0 +1,46 @@
+{% extends "emails/base.html" %}
+
+{% block title %}{% if is_anonymous %}Someone{% else %}{{ collector_name }}{% endif %} added your recipe to a collection: {{ recipe_title }}{% endblock %}
+
+{% block header %}Recipe Added to Collection{% endblock %}
+
+{% block content %}
+<h2>Hi {{ recipient_name }}!</h2>
+
+{% if is_anonymous %}
+<p><strong>Someone</strong> added your recipe to their collection!</p>
+{% else %}
+<p><strong>{{ collector_name }}</strong> added your recipe to their collection!</p>
+{% endif %}
+
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #9C27B0;">
+    <h3 style="margin: 0 0 10px 0; color: #2c3e50; font-size: 20px;">{{ recipe_title }}</h3>
+    <p style="margin: 0; color: #666; font-size: 14px;">Added to:</p>
+    <h4 style="margin: 5px 0 0 0; color: #9C27B0; font-size: 18px;">{{ collection_name }}</h4>
+    {% if collection_description %}
+    <p style="margin: 10px 0 0 0; color: #666; font-size: 14px; font-style: italic;">{{ collection_description }}</p>
+    {% endif %}
+</div>
+
+<p style="text-align: center;">
+    <a href="{{ collection_url }}" class="button" style="background-color: #9C27B0;">View Collection</a>
+</p>
+
+{% if not is_anonymous and collector_profile_url %}
+<p style="text-align: center; margin-top: 10px;">
+    <a href="{{ collector_profile_url }}" style="color: #9C27B0; text-decoration: none;">View {{ collector_name }}'s Profile</a>
+</p>
+{% endif %}
+
+<p style="text-align: center; margin-top: 20px;">
+    <a href="{{ recipe_url }}" style="color: #666; text-decoration: none; font-size: 14px;">View Your Recipe</a>
+</p>
+
+<p style="color: #666666; font-size: 14px; margin-top: 30px;">
+    {% if is_anonymous %}
+    You received this because someone added your recipe to their collection.
+    {% else %}
+    You received this because {{ collector_name }} added your recipe to their collection.
+    {% endif %}
+</p>
+{% endblock %}

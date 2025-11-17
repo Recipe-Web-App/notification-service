@@ -18,6 +18,7 @@ from core.schemas.notification import (
     NotificationDetail,
     NotificationStats,
     PasswordResetRequest,
+    RecipeCollectedRequest,
     RecipeCommentedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
@@ -473,6 +474,99 @@ class RecipeSharedView(APIView):
         except Exception:
             # Let DRF exception handler handle it
             # (RecipeNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class RecipeCollectedView(APIView):
+    """API endpoint for sending recipe collected notifications.
+
+    Sends email notification when a recipe is added to a collection.
+    Privacy-aware: collector identity revealed only if they follow recipe author.
+    Requires notification:user or notification:admin scope.
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send recipe collected notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids, recipe_id,
+                collector_id, and collection_id
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks required scope or permissions
+            404 Not Found if recipe, collection, or user doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Recipe collected notification request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Check user has required scope
+        if not request.user.has_scope(
+            "notification:user"
+        ) and not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "User lacks required scope for recipe notifications",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": ("You do not have permission to perform this action"),
+                    "detail": (
+                        "Requires notification:user or notification:admin scope"
+                    ),
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Validate request body with Pydantic
+        try:
+            recipe_collected_request = RecipeCollectedRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for recipe collected notification",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications
+        try:
+            response_data = (
+                social_notification_service.send_recipe_collected_notifications(
+                    request=recipe_collected_request,
+                )
+            )
+
+            logger.info(
+                "Recipe collected notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (RecipeNotFoundError, CollectionNotFoundError, etc.)
             raise
 
 
