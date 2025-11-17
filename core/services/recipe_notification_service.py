@@ -1,5 +1,6 @@
 """Service for handling recipe-related notifications."""
 
+from django.db.models import Avg
 from django.template.loader import render_to_string
 
 import structlog
@@ -8,12 +9,14 @@ from rest_framework.exceptions import PermissionDenied
 from core.auth.context import require_current_user
 from core.config.downstream_urls import FRONTEND_BASE_URL
 from core.exceptions import CommentNotFoundError, RecipeNotFoundError
+from core.models import Review
 from core.schemas.notification import (
     BatchNotificationResponse,
     NotificationCreated,
     RecipeCommentedRequest,
     RecipeLikedRequest,
     RecipePublishedRequest,
+    RecipeRatedRequest,
     RecipeSharedRequest,
 )
 from core.services.downstream.recipe_management_service_client import (
@@ -608,6 +611,211 @@ class RecipeNotificationService:
 
         logger.info(
             "All recipe shared notifications created",
+            queued_count=len(created_notifications),
+        )
+
+        return BatchNotificationResponse(
+            notifications=created_notifications,
+            queued_count=len(created_notifications),
+            message="Notifications queued successfully",
+        )
+
+    def _get_rating_data(self, recipe_id: int, rater_id) -> tuple[float, float, int]:
+        """Get rating data from database.
+
+        Args:
+            recipe_id: ID of the recipe
+            rater_id: ID of the user who rated
+
+        Returns:
+            Tuple of (individual_rating, average_rating, total_reviews)
+
+        Raises:
+            ValueError: If rating not found
+        """
+        try:
+            review = Review.objects.get(
+                recipe_id=recipe_id,
+                user_id=rater_id,
+            )
+            individual_rating = float(review.rating)
+        except Review.DoesNotExist as e:
+            logger.error(
+                "Review not found for rater and recipe",
+                recipe_id=recipe_id,
+                rater_id=str(rater_id),
+            )
+            raise ValueError(
+                f"No rating found for recipe {recipe_id} by user {rater_id}"
+            ) from e
+
+        rating_stats = Review.objects.filter(recipe_id=recipe_id).aggregate(
+            average=Avg("rating"),
+        )
+        average_rating = (
+            float(rating_stats["average"]) if rating_stats["average"] else 0.0
+        )
+        total_reviews = Review.objects.filter(recipe_id=recipe_id).count()
+
+        return individual_rating, average_rating, total_reviews
+
+    def send_recipe_rated_notifications(
+        self,
+        request: RecipeRatedRequest,
+    ) -> BatchNotificationResponse:
+        """Send notifications when a recipe is rated.
+
+        Privacy-aware: rater identity is only revealed if they
+        follow the recipe author (or admin scope is used).
+
+        Args:
+            request: Recipe rated request with recipient_ids, recipe_id,
+                and rater_id
+
+        Returns:
+            BatchNotificationResponse with created notifications
+
+        Raises:
+            RecipeNotFoundError: If recipe does not exist
+            UserNotFoundError: If rater or recipient does not exist
+        """
+        authenticated_user = require_current_user()
+
+        logger.info(
+            "Processing recipe rated notifications",
+            recipe_id=str(request.recipe_id),
+            rater_id=str(request.rater_id),
+            recipient_count=len(request.recipient_ids),
+            user_id=authenticated_user.user_id,
+        )
+
+        try:
+            recipe = recipe_management_service_client.get_recipe(request.recipe_id)
+        except RecipeNotFoundError:
+            logger.warning("Recipe not found", recipe_id=str(request.recipe_id))
+            raise
+
+        individual_rating, average_rating, total_reviews = self._get_rating_data(
+            request.recipe_id, request.rater_id
+        )
+
+        # Determine if rater identity should be revealed
+        rater_name = None
+        rater_username = None
+        is_anonymous = True
+
+        has_admin_scope = authenticated_user.has_scope("notification:admin")
+
+        if has_admin_scope:
+            logger.info(
+                "Admin scope detected, revealing rater identity",
+                user_id=authenticated_user.user_id,
+            )
+            rater = user_client.get_user(str(request.rater_id))
+            rater_name = rater.full_name or rater.username
+            rater_username = rater.username
+            is_anonymous = False
+        else:
+            logger.info(
+                "Validating follower relationship for user scope",
+                user_id=authenticated_user.user_id,
+                rater_id=str(request.rater_id),
+                author_id=str(recipe.user_id),
+            )
+
+            is_follower = user_client.validate_follower_relationship(
+                follower_id=str(request.rater_id),
+                followee_id=str(recipe.user_id),
+            )
+
+            if is_follower:
+                rater = user_client.get_user(str(request.rater_id))
+                rater_name = rater.full_name or rater.username
+                rater_username = rater.username
+                is_anonymous = False
+                logger.info(
+                    "Rater follows author, revealing identity",
+                    rater_id=str(request.rater_id),
+                    author_id=str(recipe.user_id),
+                )
+            else:
+                logger.info(
+                    "Rater does not follow author, sending anonymous notification",
+                    rater_id=str(request.rater_id),
+                    author_id=str(recipe.user_id),
+                )
+
+        # Construct URLs
+        recipe_url = f"{FRONTEND_BASE_URL}/recipes/{request.recipe_id}"
+        rater_profile_url = None
+        if not is_anonymous and rater_username:
+            rater_profile_url = f"{FRONTEND_BASE_URL}/users/{rater_username}"
+
+        # Create notifications for each recipient
+        created_notifications = []
+
+        for recipient_id in request.recipient_ids:
+            recipient = user_client.get_user(str(recipient_id))
+
+            if is_anonymous:
+                subject = (
+                    f"Someone rated your recipe: {recipe.title} "
+                    f"({individual_rating} stars)"
+                )
+            else:
+                subject = (
+                    f"{rater_name} rated your recipe: {recipe.title} "
+                    f"({individual_rating} stars)"
+                )
+
+            message = render_to_string(
+                "emails/recipe_rated.html",
+                {
+                    "recipient_name": (recipient.full_name or recipient.username),
+                    "recipe_title": recipe.title,
+                    "recipe_url": recipe_url,
+                    "rater_name": rater_name,
+                    "rater_profile_url": rater_profile_url,
+                    "is_anonymous": is_anonymous,
+                    "individual_rating": individual_rating,
+                    "average_rating": average_rating,
+                    "total_reviews": total_reviews,
+                },
+            )
+
+            notification = notification_service.create_notification(
+                recipient_email=recipient.email,
+                subject=subject,
+                message=message,
+                notification_type="email",
+                metadata={
+                    "template_type": "recipe_rated",
+                    "recipe_id": str(request.recipe_id),
+                    "rater_id": str(request.rater_id),
+                    "recipient_id": str(recipient_id),
+                    "is_anonymous": is_anonymous,
+                    "rating_value": str(individual_rating),
+                    "average_rating": str(average_rating),
+                },
+                auto_queue=True,
+            )
+
+            created_notifications.append(
+                NotificationCreated(
+                    notification_id=notification.notification_id,
+                    recipient_id=recipient_id,
+                )
+            )
+
+            logger.info(
+                "Notification created and queued",
+                notification_id=str(notification.notification_id),
+                recipient_id=str(recipient_id),
+                is_anonymous=is_anonymous,
+            )
+
+        logger.info(
+            "All recipe rated notifications created",
             queued_count=len(created_notifications),
         )
 

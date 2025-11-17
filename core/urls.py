@@ -15,6 +15,7 @@ from .views import (
     RecipeCommentedView,
     RecipeLikedView,
     RecipePublishedView,
+    RecipeRatedView,
     RecipeSharedView,
     RetryFailedNotificationsView,
     RetryNotificationView,
@@ -55,6 +56,11 @@ urlpatterns = [
         "notifications/recipe-collected",
         RecipeCollectedView.as_view(),
         name="recipe-collected",
+    ),
+    path(
+        "notifications/recipe-rated",
+        RecipeRatedView.as_view(),
+        name="recipe-rated",
     ),
     path(
         "notifications/new-follower",

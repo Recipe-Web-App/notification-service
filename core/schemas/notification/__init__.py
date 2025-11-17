@@ -20,6 +20,7 @@ from core.schemas.notification.request.recipe_liked_request import RecipeLikedRe
 from core.schemas.notification.request.recipe_published_request import (
     RecipePublishedRequest,
 )
+from core.schemas.notification.request.recipe_rated_request import RecipeRatedRequest
 from core.schemas.notification.request.recipe_shared_request import (
     RecipeSharedRequest,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "RecipeCommentedRequest",
     "RecipeLikedRequest",
     "RecipePublishedRequest",
+    "RecipeRatedRequest",
     "RecipeSharedRequest",
     "TemplateInfo",
     "TemplateListResponse",
