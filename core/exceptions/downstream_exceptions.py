@@ -73,6 +73,23 @@ class CommentNotFoundError(DownstreamServiceError):
         )
 
 
+class CollectionNotFoundError(DownstreamServiceError):
+    """Collection not found in recipe-management service (404)."""
+
+    def __init__(self, collection_id: int):
+        """Initialize collection not found error.
+
+        Args:
+            collection_id: ID of the collection that was not found
+        """
+        self.collection_id = collection_id
+        super().__init__(
+            message=f"Collection with ID {collection_id} not found",
+            service_name="recipe-management",
+            status_code=404,
+        )
+
+
 class DownstreamServiceUnavailableError(DownstreamServiceError):
     """Downstream service is unavailable (500/503 errors)."""
 

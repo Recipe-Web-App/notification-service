@@ -47,4 +47,32 @@ TEMPLATE_REGISTRY = [
         "required_fields": ["recipient_ids", "reset_token", "expiry_hours"],
         "endpoint": "/notifications/password-reset",
     },
+    {
+        "template_type": "recipe_trending",
+        "display_name": "Recipe Trending",
+        "description": "Notify recipe author when their recipe is trending",
+        "required_fields": ["recipient_ids", "recipe_id"],
+        "endpoint": "/notifications/recipe-trending",
+    },
+    {
+        "template_type": "email_changed",
+        "display_name": "Email Changed",
+        "description": "Security notification for email address change",
+        "required_fields": ["recipient_ids", "old_email", "new_email"],
+        "endpoint": "/notifications/email-changed",
+    },
+    {
+        "template_type": "password_changed",
+        "display_name": "Password Changed",
+        "description": "Security notification for password change",
+        "required_fields": ["recipient_ids"],
+        "endpoint": "/notifications/password-changed",
+    },
+    {
+        "template_type": "maintenance",
+        "display_name": "Maintenance",
+        "description": "Platform maintenance window notification",
+        "required_fields": ["maintenance_start", "maintenance_end", "description"],
+        "endpoint": "/notifications/maintenance",
+    },
 ]

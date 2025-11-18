@@ -1,0 +1,36 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Scheduled Maintenance Notification{% endblock %}
+
+{% block header %}Scheduled Maintenance{% endblock %}
+
+{% block content %}
+<h2>Hello {{ recipient_name }},</h2>
+
+<p>This is an important notification about upcoming scheduled maintenance for Recipe Web App.</p>
+
+<div style="background-color: #FFF3CD; border-left: 4px solid #FF9800; padding: 15px; margin: 20px 0;">
+    <p style="margin: 0;"><strong>Maintenance Window:</strong></p>
+    <p style="margin: 5px 0 0 0;">
+        <strong>Start:</strong> {{ maintenance_start|date:"F j, Y, g:i A e" }}<br>
+        <strong>End:</strong> {{ maintenance_end|date:"F j, Y, g:i A e" }}
+    </p>
+</div>
+
+<div style="background-color: #F5F5F5; border: 1px solid #DDD; padding: 15px; margin: 20px 0;">
+    <p style="margin: 0;"><strong>What to Expect:</strong></p>
+    <p style="margin: 10px 0 0 0;">{{ description }}</p>
+</div>
+
+<p><strong>Please plan accordingly.</strong> We appreciate your patience and understanding as we work to improve our platform.</p>
+
+<p>If you have any questions or concerns, feel free to reach out to our support team.</p>
+
+<p style="text-align: center; margin: 30px 0;">
+    <a href="{{ app_url }}" class="button">Visit Recipe Web App</a>
+</p>
+
+<p>Thank you for your continued support!</p>
+
+<p><strong>The Recipe Web App Team</strong></p>
+{% endblock %}

@@ -3,17 +3,25 @@
 from django.urls import path
 
 from .views import (
+    EmailChangedView,
     LivenessCheckView,
+    MaintenanceView,
     MentionView,
     NewFollowerView,
     NotificationDetailView,
     NotificationRetryStatusView,
     NotificationStatsView,
+    PasswordChangedView,
     PasswordResetView,
     ReadinessCheckView,
+    RecipeCollectedView,
     RecipeCommentedView,
+    RecipeFeaturedView,
     RecipeLikedView,
     RecipePublishedView,
+    RecipeRatedView,
+    RecipeSharedView,
+    RecipeTrendingView,
     RetryFailedNotificationsView,
     RetryNotificationView,
     TemplateListView,
@@ -45,6 +53,31 @@ urlpatterns = [
         name="recipe-commented",
     ),
     path(
+        "notifications/recipe-shared",
+        RecipeSharedView.as_view(),
+        name="recipe-shared",
+    ),
+    path(
+        "notifications/recipe-collected",
+        RecipeCollectedView.as_view(),
+        name="recipe-collected",
+    ),
+    path(
+        "notifications/recipe-rated",
+        RecipeRatedView.as_view(),
+        name="recipe-rated",
+    ),
+    path(
+        "notifications/recipe-featured",
+        RecipeFeaturedView.as_view(),
+        name="recipe-featured",
+    ),
+    path(
+        "notifications/recipe-trending",
+        RecipeTrendingView.as_view(),
+        name="recipe-trending",
+    ),
+    path(
         "notifications/new-follower",
         NewFollowerView.as_view(),
         name="new-follower",
@@ -63,6 +96,21 @@ urlpatterns = [
         "notifications/welcome",
         WelcomeView.as_view(),
         name="welcome",
+    ),
+    path(
+        "notifications/email-changed",
+        EmailChangedView.as_view(),
+        name="email-changed",
+    ),
+    path(
+        "notifications/password-changed",
+        PasswordChangedView.as_view(),
+        name="password-changed",
+    ),
+    path(
+        "notifications/maintenance",
+        MaintenanceView.as_view(),
+        name="maintenance",
     ),
     # Admin endpoints (must come before notifications/<notification_id>)
     path(

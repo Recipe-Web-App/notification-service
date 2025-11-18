@@ -56,6 +56,8 @@ tags:
     description: Notifications for recipe-related events
   - name: Social Notifications
     description: Notifications for social interactions
+  - name: Activity Notifications
+    description: Notifications for recipe activity and engagement
   - name: System Notifications
     description: System and security notifications
   - name: Notification Management
@@ -301,6 +303,231 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /notifications/recipe-shared:
+    post:
+      tags:
+        - Social Notifications
+      summary: Notify recipe author when someone shares their recipe
+      description: |-
+        Sends email notification to the recipe author when their recipe is shared.
+        Requires **notification:admin** scope OR **notification:user** scope with valid follower relationship.
+
+        **Privacy Considerations:**
+        - The sharer's identity (sharer_id) is only included in the notification if:
+          1. The sharer has a public profile, OR
+          2. The sharer follows the recipe author
+        - Otherwise, the notification indicates an anonymous share
+
+        The service fetches recipe details from recipe-management-service and sharer details from user-management-service.
+      operationId: notifyRecipeShared
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeSharedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              recipe_id: 123
+              sharer_id: 550e8400-e29b-41d4-a716-446655440002
+              share_message: "Check out this amazing recipe!"
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/recipe-collected:
+    post:
+      tags:
+        - Social Notifications
+      summary: Notify recipe author when recipe is added to a collection
+      description: |-
+        Sends email notification to the recipe author when their recipe is added to a collection.
+        Requires **notification:admin** scope OR **notification:user** scope with valid follower relationship.
+
+        **Privacy Considerations:**
+        - Notification is only sent if the collector's privacy settings allow it
+        - Service validates that collector either has public profile or follows the recipe author
+
+        The service fetches recipe details from recipe-management-service, collection details, and collector info from user-management-service.
+        The notification includes links to the collection and the collector's profile.
+      operationId: notifyRecipeCollected
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeCollectedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              recipe_id: 123
+              collector_id: 550e8400-e29b-41d4-a716-446655440002
+              collection_id: 456
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Activity Notification Endpoints
+  /notifications/recipe-rated:
+    post:
+      tags:
+        - Activity Notifications
+      summary: Notify recipe author when someone rates their recipe
+      description: |-
+        Sends email notification to the recipe author when their recipe receives a rating.
+        Requires **notification:admin** scope OR **notification:user** scope with valid follower relationship.
+
+        The service fetches recipe details and rating information from recipe-management-service,
+        and rater details from user-management-service.
+      operationId: notifyRecipeRated
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeRatedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              recipe_id: 123
+              rater_id: 550e8400-e29b-41d4-a716-446655440002
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/recipe-featured:
+    post:
+      tags:
+        - Activity Notifications
+      summary: Notify recipe author when their recipe is featured
+      description: |-
+        Sends email notification to the recipe author when their recipe is featured by the platform.
+        Requires **notification:admin** scope (system-generated notification).
+
+        The service fetches recipe details from recipe-management-service and constructs URLs using FRONTEND_BASE_URL.
+      operationId: notifyRecipeFeatured
+      security:
+        - OAuth2: ["notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeFeaturedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              recipe_id: 123
+              featured_reason: "Editor's Choice - Outstanding presentation and clear instructions"
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/recipe-trending:
+    post:
+      tags:
+        - Activity Notifications
+      summary: Notify recipe author when their recipe is trending
+      description: |-
+        Sends email notification to the recipe author when their recipe is trending on the platform.
+        Requires **notification:admin** scope (system-generated notification).
+
+        The service fetches recipe details from recipe-management-service and constructs URLs using FRONTEND_BASE_URL.
+      operationId: notifyRecipeTrending
+      security:
+        - OAuth2: ["notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeTrendingRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              recipe_id: 123
+              trending_metrics: "1,234 views and 89 likes in the past 24 hours"
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # System Notification Endpoints
   /notifications/password-reset:
     post:
@@ -419,6 +646,166 @@ paths:
               example:
                 error: not_found
                 message: User not found
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/email-changed:
+    post:
+      tags:
+        - System Notifications
+      summary: Send security notification for email change
+      description: |-
+        Sends security notification to both old and new email addresses when a user changes their email.
+        Requires **service-to-service authentication** (client_credentials grant) - typically called by user-management-service or auth-service.
+
+        **Authorization**: This endpoint only accepts service-to-service authentication where user_id equals client_id (client_credentials grant type).
+        Regular user authentication (even with admin scope) will be rejected with 403 Forbidden.
+
+        The service sends notifications to both the old and new email addresses to alert the user of the change.
+      operationId: notifyEmailChanged
+      security:
+        - OAuth2: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailChangedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+              old_email: old.email@example.com
+              new_email: new.email@example.com
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - requires service-to-service authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: forbidden
+                message: You do not have permission to perform this action
+                detail: "Email change notifications require service-to-service authentication"
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/password-changed:
+    post:
+      tags:
+        - System Notifications
+      summary: Send security notification for password change
+      description: |-
+        Sends security notification when a user's password is changed.
+        Requires **service-to-service authentication** (client_credentials grant) - typically called by auth-service.
+
+        **Authorization**: This endpoint only accepts service-to-service authentication where user_id equals client_id (client_credentials grant type).
+        Regular user authentication (even with admin scope) will be rejected with 403 Forbidden.
+
+        The service fetches user email from user-management-service.
+      operationId: notifyPasswordChanged
+      security:
+        - OAuth2: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangedRequest'
+            example:
+              recipient_ids:
+                - 550e8400-e29b-41d4-a716-446655440001
+      responses:
+        '202':
+          description: Notification queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - requires service-to-service authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: forbidden
+                message: You do not have permission to perform this action
+                detail: "Password change notifications require service-to-service authentication"
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /notifications/maintenance:
+    post:
+      tags:
+        - System Notifications
+      summary: Send system maintenance notification
+      description: |-
+        Broadcasts maintenance notification about scheduled system maintenance.
+        Requires **notification:admin** scope (typically sent by operations/admin team).
+
+        **Broadcast Behavior:**
+        - `adminOnly: false` (default) - Broadcasts to all users and all admins (full platform notification)
+        - `adminOnly: true` - Sends only to admins (internal maintenance that doesn't impact users)
+
+        The service automatically determines recipients based on the adminOnly flag and fetches user emails from user-management-service.
+      operationId: notifyMaintenance
+      security:
+        - OAuth2: ["notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceRequest'
+            examples:
+              all_users:
+                summary: Broadcast to all users and admins
+                value:
+                  adminOnly: false
+                  maintenance_start: "2025-11-15T02:00:00Z"
+                  maintenance_end: "2025-11-15T06:00:00Z"
+                  description: "Scheduled database maintenance. The platform will be unavailable during this time."
+              admins_only:
+                summary: Send to admins only
+                value:
+                  adminOnly: true
+                  maintenance_start: "2025-11-15T03:00:00Z"
+                  maintenance_end: "2025-11-15T03:30:00Z"
+                  description: "Backend API server restart - no user-facing impact expected."
+      responses:
+        '202':
+          description: Notifications queued successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchNotificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '429':
           $ref: '#/components/responses/RateLimitExceeded'
         '500':
@@ -1034,6 +1421,46 @@ paths:
                     description: Send welcome email to newly registered users
                     required_fields: [recipient_ids]
                     endpoint: /notifications/welcome
+                  - template_type: recipe_shared
+                    display_name: Recipe Shared
+                    description: Notify recipe author when someone shares their recipe
+                    required_fields: [recipient_ids, recipe_id]
+                    endpoint: /notifications/recipe-shared
+                  - template_type: recipe_collected
+                    display_name: Recipe Collected
+                    description: Notify recipe author when recipe is added to a collection
+                    required_fields: [recipient_ids, recipe_id, collector_id, collection_id]
+                    endpoint: /notifications/recipe-collected
+                  - template_type: recipe_rated
+                    display_name: Recipe Rated
+                    description: Notify recipe author when someone rates their recipe
+                    required_fields: [recipient_ids, recipe_id, rater_id]
+                    endpoint: /notifications/recipe-rated
+                  - template_type: recipe_featured
+                    display_name: Recipe Featured
+                    description: Notify recipe author when their recipe is featured
+                    required_fields: [recipient_ids, recipe_id]
+                    endpoint: /notifications/recipe-featured
+                  - template_type: recipe_trending
+                    display_name: Recipe Trending
+                    description: Notify recipe author when their recipe is trending
+                    required_fields: [recipient_ids, recipe_id]
+                    endpoint: /notifications/recipe-trending
+                  - template_type: email_changed
+                    display_name: Email Changed
+                    description: Security notification for email address change
+                    required_fields: [recipient_ids, old_email, new_email]
+                    endpoint: /notifications/email-changed
+                  - template_type: password_changed
+                    display_name: Password Changed
+                    description: Security notification for password change
+                    required_fields: [recipient_ids]
+                    endpoint: /notifications/password-changed
+                  - template_type: maintenance
+                    display_name: Maintenance
+                    description: System maintenance notification
+                    required_fields: [maintenance_start, maintenance_end, description]
+                    endpoint: /notifications/maintenance
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1252,6 +1679,198 @@ components:
             format: uuid
           minItems: 1
           description: List of recipient user IDs (newly registered users). Service will fetch user details (email, username, full_name) from user-management-service. Supports batch operations for bulk user imports.
+
+    RecipeSharedRequest:
+      type: object
+      required:
+        - recipient_ids
+        - recipe_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (typically the recipe author)
+        recipe_id:
+          type: integer
+          format: int64
+          description: ID of the shared recipe. Service will fetch recipe details from recipe-management-service.
+        sharer_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional UUID of the user who shared the recipe. Only included in notification if sharer has public profile or follows recipient. Service will fetch sharer details from user-management-service.
+        share_message:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Optional message from the sharer about why they're sharing the recipe
+
+    RecipeCollectedRequest:
+      type: object
+      required:
+        - recipient_ids
+        - recipe_id
+        - collector_id
+        - collection_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (typically the recipe author)
+        recipe_id:
+          type: integer
+          format: int64
+          description: ID of the recipe added to collection. Service will fetch recipe details from recipe-management-service.
+        collector_id:
+          type: string
+          format: uuid
+          description: UUID of the user who added the recipe to their collection. Service will fetch collector details from user-management-service.
+        collection_id:
+          type: integer
+          format: int64
+          description: ID of the collection. Service will fetch collection details from recipe-management-service. Notification includes links to collection and collector profile.
+
+    RecipeRatedRequest:
+      type: object
+      required:
+        - recipient_ids
+        - recipe_id
+        - rater_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (typically the recipe author)
+        recipe_id:
+          type: integer
+          format: int64
+          description: ID of the rated recipe. Service will fetch recipe details and rating information from recipe-management-service.
+        rater_id:
+          type: string
+          format: uuid
+          description: UUID of the user who rated the recipe. Service will fetch rater details from user-management-service.
+
+    RecipeFeaturedRequest:
+      type: object
+      required:
+        - recipient_ids
+        - recipe_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (recipe authors being notified their recipe is featured)
+        recipe_id:
+          type: integer
+          format: int64
+          description: ID of the featured recipe. Service will fetch recipe details from recipe-management-service.
+        featured_reason:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Optional reason or category for featuring (e.g., "Editor's Choice", "Top Rated", "Seasonal Favorite")
+
+    RecipeTrendingRequest:
+      type: object
+      required:
+        - recipient_ids
+        - recipe_id
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (recipe authors being notified their recipe is trending)
+        recipe_id:
+          type: integer
+          format: int64
+          description: ID of the trending recipe. Service will fetch recipe details from recipe-management-service.
+        trending_metrics:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Optional trending metrics summary (e.g., "1,234 views and 89 likes in the past 24 hours")
+
+    EmailChangedRequest:
+      type: object
+      required:
+        - recipient_ids
+        - old_email
+        - new_email
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 1
+          description: Single recipient (user whose email changed). Notifications sent to both old and new email addresses.
+        old_email:
+          type: string
+          format: email
+          description: Previous email address (notification sent here as security measure)
+        new_email:
+          type: string
+          format: email
+          description: New email address (notification sent here for confirmation)
+
+    PasswordChangedRequest:
+      type: object
+      required:
+        - recipient_ids
+      properties:
+        recipient_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of recipient user IDs (users whose password changed). Service will fetch user email from user-management-service. Supports batch operations for security events.
+
+    MaintenanceRequest:
+      type: object
+      required:
+        - maintenance_start
+        - maintenance_end
+        - description
+      properties:
+        adminOnly:
+          type: boolean
+          default: false
+          description: "If true, send notification only to admins. If false (default), broadcast to all users and admins. Service determines recipients based on this flag and fetches user emails from user-management-service."
+        maintenance_start:
+          type: string
+          format: date-time
+          description: Scheduled start time of maintenance window (ISO 8601 format)
+        maintenance_end:
+          type: string
+          format: date-time
+          description: Scheduled end time of maintenance window (ISO 8601 format)
+        description:
+          type: string
+          maxLength: 1000
+          description: Description of the maintenance work and expected impact
 
     # Response Schemas
     BatchNotificationResponse:

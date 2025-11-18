@@ -1,0 +1,60 @@
+{% extends "emails/base.html" %}
+
+{% block title %}{% if is_anonymous %}Someone{% else %}{{ rater_name }}{% endif %} rated your recipe: {{ recipe_title }}{% endblock %}
+
+{% block header %}Your Recipe Was Rated{% endblock %}
+
+{% block content %}
+<h2>Hi {{ recipient_name }}!</h2>
+
+{% if is_anonymous %}
+<p><strong>Someone</strong> rated your recipe!</p>
+{% else %}
+<p><strong>{{ rater_name }}</strong> rated your recipe!</p>
+{% endif %}
+
+<div style="background-color: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #FF9800;">
+    <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 20px;">{{ recipe_title }}</h3>
+
+    <div style="margin: 10px 0;">
+        <p style="margin: 5px 0; color: #666; font-size: 14px;">
+            {% if is_anonymous %}
+            <strong style="color: #FF9800; font-size: 18px;">{{ individual_rating }}</strong> out of 5 stars
+            {% else %}
+            <strong>{{ rater_name }}</strong> gave it
+            <strong style="color: #FF9800; font-size: 18px;">{{ individual_rating }}</strong> out of 5 stars
+            {% endif %}
+        </p>
+    </div>
+
+    <div style="margin: 15px 0; padding-top: 15px; border-top: 1px solid #FFE0B2;">
+        <p style="margin: 0; color: #666; font-size: 14px;">
+            Your recipe now has an average rating of
+            <strong style="color: #F57C00;">{{ average_rating|floatformat:1 }} stars</strong>
+            {% if total_reviews == 1 %}
+            (1 review)
+            {% else %}
+            ({{ total_reviews }} reviews)
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<p style="text-align: center;">
+    <a href="{{ recipe_url }}" class="button" style="background-color: #FF9800;">View Recipe</a>
+</p>
+
+{% if not is_anonymous and rater_profile_url %}
+<p style="text-align: center; margin-top: 10px;">
+    <a href="{{ rater_profile_url }}" style="color: #FF9800; text-decoration: none;">View {{ rater_name }}'s Profile</a>
+</p>
+{% endif %}
+
+<p style="color: #666666; font-size: 14px; margin-top: 30px;">
+    {% if is_anonymous %}
+    You received this because someone rated your recipe.
+    {% else %}
+    You received this because {{ rater_name }} rated your recipe.
+    {% endif %}
+</p>
+{% endblock %}

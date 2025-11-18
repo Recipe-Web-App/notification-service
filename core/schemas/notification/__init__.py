@@ -5,17 +5,37 @@ from core.schemas.notification.notification_created import NotificationCreated
 from core.schemas.notification.notification_detail import NotificationDetail
 from core.schemas.notification.notification_list import NotificationList
 from core.schemas.notification.notification_stats import NotificationStats
+from core.schemas.notification.request.email_changed_request import (
+    EmailChangedRequest,
+)
+from core.schemas.notification.request.maintenance_request import MaintenanceRequest
 from core.schemas.notification.request.mention_request import MentionRequest
 from core.schemas.notification.request.new_follower_request import NewFollowerRequest
+from core.schemas.notification.request.password_changed_request import (
+    PasswordChangedRequest,
+)
 from core.schemas.notification.request.password_reset_request import (
     PasswordResetRequest,
+)
+from core.schemas.notification.request.recipe_collected_request import (
+    RecipeCollectedRequest,
 )
 from core.schemas.notification.request.recipe_commented_request import (
     RecipeCommentedRequest,
 )
+from core.schemas.notification.request.recipe_featured_request import (
+    RecipeFeaturedRequest,
+)
 from core.schemas.notification.request.recipe_liked_request import RecipeLikedRequest
 from core.schemas.notification.request.recipe_published_request import (
     RecipePublishedRequest,
+)
+from core.schemas.notification.request.recipe_rated_request import RecipeRatedRequest
+from core.schemas.notification.request.recipe_shared_request import (
+    RecipeSharedRequest,
+)
+from core.schemas.notification.request.recipe_trending_request import (
+    RecipeTrendingRequest,
 )
 from core.schemas.notification.request.welcome_request import WelcomeRequest
 from core.schemas.notification.response.batch_notification_response import (
@@ -31,6 +51,8 @@ from core.schemas.notification.template_info import TemplateInfo
 
 __all__ = [
     "BatchNotificationResponse",
+    "EmailChangedRequest",
+    "MaintenanceRequest",
     "MentionRequest",
     "NewFollowerRequest",
     "NotificationCreate",
@@ -39,10 +61,16 @@ __all__ = [
     "NotificationList",
     "NotificationListResponse",
     "NotificationStats",
+    "PasswordChangedRequest",
     "PasswordResetRequest",
+    "RecipeCollectedRequest",
     "RecipeCommentedRequest",
+    "RecipeFeaturedRequest",
     "RecipeLikedRequest",
     "RecipePublishedRequest",
+    "RecipeRatedRequest",
+    "RecipeSharedRequest",
+    "RecipeTrendingRequest",
     "TemplateInfo",
     "TemplateListResponse",
     "WelcomeRequest",

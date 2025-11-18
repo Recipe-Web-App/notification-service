@@ -4,8 +4,12 @@ import structlog
 from pydantic import ValidationError
 
 from core.config.downstream_urls import RECIPE_SERVICE_BASE_URL
-from core.exceptions import CommentNotFoundError, RecipeNotFoundError
-from core.schemas.recipe import CommentDto, RecipeDto
+from core.exceptions import (
+    CollectionNotFoundError,
+    CommentNotFoundError,
+    RecipeNotFoundError,
+)
+from core.schemas.recipe import CollectionDto, CommentDto, RecipeDto
 from core.services.downstream.base_downstream_client import BaseDownstreamClient
 
 logger = structlog.get_logger(__name__)
@@ -130,6 +134,63 @@ class RecipeManagementServiceClient(BaseDownstreamClient):
             logger.error(
                 "Failed to parse comment response",
                 comment_id=comment_id,
+                error=str(e),
+            )
+            raise
+
+    def get_collection(self, collection_id: int) -> CollectionDto:
+        """Fetch collection by ID from recipe-management service.
+
+        Args:
+            collection_id: Unique collection identifier
+
+        Returns:
+            CollectionDto object with collection data
+
+        Raises:
+            CollectionNotFoundError: If collection with given ID does not exist
+            DownstreamServiceError: For other client errors (auth, validation, etc.)
+            DownstreamServiceUnavailableError: If service is unavailable
+            requests.Timeout: If request times out
+            requests.ConnectionError: If connection fails
+        """
+        url = f"{self.base_url}/collections/{collection_id}"
+
+        logger.info(
+            "Fetching collection from recipe-management service",
+            collection_id=collection_id,
+        )
+
+        response = self._make_request("GET", url)
+
+        # Handle 404 - collection not found
+        if response.status_code == 404:
+            logger.warning("Collection not found", collection_id=collection_id)
+            raise CollectionNotFoundError(collection_id=collection_id)
+
+        # Parse and validate response
+        try:
+            collection_data = response.json()
+            collection_dto = CollectionDto(**collection_data)
+            logger.info(
+                "Successfully fetched collection",
+                collection_id=collection_id,
+                name=collection_dto.name,
+            )
+            return collection_dto
+
+        except ValidationError as e:
+            logger.error(
+                "Failed to validate collection response",
+                collection_id=collection_id,
+                validation_errors=e.errors(),
+            )
+            raise
+
+        except Exception as e:
+            logger.error(
+                "Failed to parse collection response",
+                collection_id=collection_id,
                 error=str(e),
             )
             raise

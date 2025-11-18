@@ -1,18 +1,27 @@
 """Service for handling social-related notifications."""
 
+from uuid import UUID
+
 from django.template.loader import render_to_string
 
 import structlog
 from rest_framework.exceptions import PermissionDenied
 
 from core.auth.context import require_current_user
+from core.auth.oauth2 import OAuth2User
 from core.config.downstream_urls import FRONTEND_BASE_URL
-from core.exceptions import CommentNotFoundError, RecipeNotFoundError, UserNotFoundError
+from core.exceptions import (
+    CollectionNotFoundError,
+    CommentNotFoundError,
+    RecipeNotFoundError,
+    UserNotFoundError,
+)
 from core.schemas.notification import (
     BatchNotificationResponse,
     MentionRequest,
     NewFollowerRequest,
     NotificationCreated,
+    RecipeCollectedRequest,
 )
 from core.services.downstream.recipe_management_service_client import (
     recipe_management_service_client,
@@ -319,6 +328,207 @@ class SocialNotificationService:
 
         logger.info(
             "All mention notifications created",
+            queued_count=len(created_notifications),
+        )
+
+        return BatchNotificationResponse(
+            notifications=created_notifications,
+            queued_count=len(created_notifications),
+            message="Notifications queued successfully",
+        )
+
+    def _resolve_collector_identity(
+        self,
+        collector_id: UUID,
+        recipe_author_id: UUID,
+        authenticated_user: OAuth2User,
+    ) -> tuple[str | None, str | None, bool]:
+        """Resolve collector identity based on privacy rules.
+
+        Args:
+            collector_id: ID of the collector
+            recipe_author_id: ID of the recipe author
+            authenticated_user: Authenticated user making the request
+
+        Returns:
+            Tuple of (collector_name, collector_username, is_anonymous)
+        """
+        has_admin_scope = authenticated_user.has_scope("notification:admin")
+
+        if has_admin_scope:
+            logger.info(
+                "Admin scope detected, revealing collector identity",
+                user_id=authenticated_user.user_id,
+            )
+            collector = user_client.get_user(str(collector_id))
+            return (
+                collector.full_name or collector.username,
+                collector.username,
+                False,
+            )
+
+        # User scope: check if collector follows recipe author
+        logger.info(
+            "Validating follower relationship for user scope",
+            user_id=authenticated_user.user_id,
+            collector_id=str(collector_id),
+            author_id=str(recipe_author_id),
+        )
+
+        is_follower = user_client.validate_follower_relationship(
+            follower_id=str(collector_id),
+            followee_id=str(recipe_author_id),
+        )
+
+        if is_follower:
+            collector = user_client.get_user(str(collector_id))
+            logger.info(
+                "Collector follows author, revealing identity",
+                collector_id=str(collector_id),
+                author_id=str(recipe_author_id),
+            )
+            return (
+                collector.full_name or collector.username,
+                collector.username,
+                False,
+            )
+
+        logger.info(
+            "Collector does not follow author, sending anonymous notification",
+            collector_id=str(collector_id),
+            author_id=str(recipe_author_id),
+        )
+        return (None, None, True)
+
+    def send_recipe_collected_notifications(
+        self,
+        request: RecipeCollectedRequest,
+    ) -> BatchNotificationResponse:
+        """Send notifications when a recipe is added to a collection.
+
+        Privacy-aware: collector identity is only revealed if they
+        follow the recipe author (or admin scope is used).
+
+        Args:
+            request: Recipe collected request with recipient_ids, recipe_id,
+                collector_id, and collection_id
+
+        Returns:
+            BatchNotificationResponse with created notifications
+
+        Raises:
+            RecipeNotFoundError: If recipe does not exist
+            CollectionNotFoundError: If collection does not exist
+            UserNotFoundError: If collector or recipient does not exist
+        """
+        authenticated_user = require_current_user()
+
+        logger.info(
+            "Processing recipe collected notifications",
+            recipe_id=str(request.recipe_id),
+            collection_id=str(request.collection_id),
+            collector_id=str(request.collector_id),
+            recipient_count=len(request.recipient_ids),
+            user_id=authenticated_user.user_id,
+        )
+
+        try:
+            recipe = recipe_management_service_client.get_recipe(request.recipe_id)
+        except RecipeNotFoundError:
+            logger.warning("Recipe not found", recipe_id=str(request.recipe_id))
+            raise
+
+        try:
+            collection = recipe_management_service_client.get_collection(
+                request.collection_id
+            )
+        except CollectionNotFoundError:
+            logger.warning(
+                "Collection not found",
+                collection_id=str(request.collection_id),
+            )
+            raise
+
+        # Resolve collector identity based on privacy rules
+        collector_name, collector_username, is_anonymous = (
+            self._resolve_collector_identity(
+                request.collector_id,
+                recipe.user_id,
+                authenticated_user,
+            )
+        )
+
+        # Construct URLs
+        recipe_url = f"{FRONTEND_BASE_URL}/recipes/{request.recipe_id}"
+        collection_url = f"{FRONTEND_BASE_URL}/collections/{request.collection_id}"
+        collector_profile_url = None
+        if not is_anonymous and collector_username:
+            collector_profile_url = f"{FRONTEND_BASE_URL}/users/{collector_username}"
+
+        # Create notifications for each recipient
+        created_notifications = []
+
+        for recipient_id in request.recipient_ids:
+            # Fetch recipient details
+            recipient = user_client.get_user(str(recipient_id))
+
+            # Prepare notification subject and message
+            if is_anonymous:
+                subject = f"Someone added your recipe to a collection: {recipe.title}"
+            else:
+                subject = (
+                    f"{collector_name} added your recipe to a collection: "
+                    f"{recipe.title}"
+                )
+
+            message = render_to_string(
+                "emails/recipe_collected.html",
+                {
+                    "recipient_name": (recipient.full_name or recipient.username),
+                    "recipe_title": recipe.title,
+                    "recipe_url": recipe_url,
+                    "collection_name": collection.name,
+                    "collection_description": collection.description,
+                    "collection_url": collection_url,
+                    "collector_name": collector_name,
+                    "collector_profile_url": collector_profile_url,
+                    "is_anonymous": is_anonymous,
+                },
+            )
+
+            # Create notification with metadata
+            notification = notification_service.create_notification(
+                recipient_email=recipient.email,
+                subject=subject,
+                message=message,
+                notification_type="email",
+                metadata={
+                    "template_type": "recipe_collected",
+                    "recipe_id": str(request.recipe_id),
+                    "collection_id": str(request.collection_id),
+                    "collector_id": str(request.collector_id),
+                    "recipient_id": str(recipient_id),
+                    "is_anonymous": is_anonymous,
+                },
+                auto_queue=True,  # Queue for async processing
+            )
+
+            created_notifications.append(
+                NotificationCreated(
+                    notification_id=notification.notification_id,
+                    recipient_id=recipient_id,
+                )
+            )
+
+            logger.info(
+                "Notification created and queued",
+                notification_id=str(notification.notification_id),
+                recipient_id=str(recipient_id),
+                is_anonymous=is_anonymous,
+            )
+
+        logger.info(
+            "All recipe collected notifications created",
             queued_count=len(created_notifications),
         )
 
