@@ -54,4 +54,11 @@ TEMPLATE_REGISTRY = [
         "required_fields": ["recipient_ids", "recipe_id"],
         "endpoint": "/notifications/recipe-trending",
     },
+    {
+        "template_type": "email_changed",
+        "display_name": "Email Changed",
+        "description": "Security notification for email address change",
+        "required_fields": ["recipient_ids", "old_email", "new_email"],
+        "endpoint": "/notifications/email-changed",
+    },
 ]

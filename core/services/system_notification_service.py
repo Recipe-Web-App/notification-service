@@ -10,6 +10,7 @@ from core.config.downstream_urls import FRONTEND_BASE_URL
 from core.exceptions import UserNotFoundError
 from core.schemas.notification import (
     BatchNotificationResponse,
+    EmailChangedRequest,
     NotificationCreated,
     PasswordResetRequest,
     WelcomeRequest,
@@ -211,6 +212,169 @@ class SystemNotificationService:
                 notification_id=str(notification.notification_id),
                 recipient_id=str(recipient_id),
             )
+
+        return BatchNotificationResponse(
+            notifications=created_notifications,
+            queued_count=len(created_notifications),
+            message="Notifications queued successfully",
+        )
+
+    def send_email_changed_notifications(
+        self,
+        request: EmailChangedRequest,
+    ) -> BatchNotificationResponse:
+        """Send email change notifications to old and new addresses.
+
+        Sends security notifications to both the old and new email addresses
+        when a user changes their email. This is a security measure to alert
+        the user if an unauthorized change was made.
+
+        Args:
+            request: Email changed request with recipient_id, old_email, new_email
+
+        Returns:
+            BatchNotificationResponse with created notifications (2 notifications)
+
+        Raises:
+            UserNotFoundError: If recipient user does not exist
+            PermissionDenied: If caller is not a service (service-to-service only)
+        """
+        # Get authenticated user/service from security context
+        authenticated_user = require_current_user()
+
+        logger.info(
+            "Processing email changed notification request",
+            recipient_count=len(request.recipient_ids),
+            client_id=authenticated_user.client_id,
+            old_email=request.old_email,
+            new_email=request.new_email,
+        )
+
+        # Verify service-to-service authentication
+        # For client_credentials grant, user_id equals client_id
+        is_service_to_service = (
+            authenticated_user.user_id == authenticated_user.client_id
+        )
+
+        if not is_service_to_service:
+            logger.warning(
+                "Non-service caller attempted to send email changed notifications",
+                user_id=authenticated_user.user_id,
+                client_id=authenticated_user.client_id,
+            )
+            raise PermissionDenied(
+                detail=(
+                    "Email change notifications require "
+                    "service-to-service authentication"
+                )
+            )
+
+        # Get the single recipient ID
+        recipient_id = request.recipient_ids[0]
+
+        # Fetch recipient user details
+        try:
+            recipient = user_client.get_user(str(recipient_id))
+        except UserNotFoundError:
+            logger.warning(
+                "Recipient user not found",
+                recipient_id=str(recipient_id),
+            )
+            raise
+
+        # Determine display name (full name with fallback to username)
+        display_name = recipient.full_name or recipient.username
+
+        created_notifications: list[NotificationCreated] = []
+
+        # Create notification for OLD email (security alert)
+        subject_old = "Security Alert: Email Address Changed"
+        message_old = render_to_string(
+            "emails/email_changed.html",
+            {
+                "recipient_name": display_name,
+                "old_email": request.old_email,
+                "new_email": request.new_email,
+                "is_old_email": True,
+                "app_url": FRONTEND_BASE_URL,
+            },
+        )
+
+        notification_old = notification_service.create_notification(
+            recipient_email=request.old_email,
+            subject=subject_old,
+            message=message_old,
+            notification_type="email",
+            metadata={
+                "template_type": "email_changed",
+                "recipient_id": str(recipient_id),
+                "old_email": request.old_email,
+                "new_email": request.new_email,
+                "sent_to": "old_email",
+            },
+            auto_queue=True,
+        )
+
+        created_notifications.append(
+            NotificationCreated(
+                notification_id=notification_old.notification_id,
+                recipient_id=recipient_id,
+            )
+        )
+
+        logger.info(
+            "Email changed notification created for old email",
+            notification_id=str(notification_old.notification_id),
+            recipient_id=str(recipient_id),
+            email=request.old_email,
+        )
+
+        # Create notification for NEW email (confirmation)
+        subject_new = "Email Address Successfully Changed"
+        message_new = render_to_string(
+            "emails/email_changed.html",
+            {
+                "recipient_name": display_name,
+                "old_email": request.old_email,
+                "new_email": request.new_email,
+                "is_old_email": False,
+                "app_url": FRONTEND_BASE_URL,
+            },
+        )
+
+        notification_new = notification_service.create_notification(
+            recipient_email=request.new_email,
+            subject=subject_new,
+            message=message_new,
+            notification_type="email",
+            metadata={
+                "template_type": "email_changed",
+                "recipient_id": str(recipient_id),
+                "old_email": request.old_email,
+                "new_email": request.new_email,
+                "sent_to": "new_email",
+            },
+            auto_queue=True,
+        )
+
+        created_notifications.append(
+            NotificationCreated(
+                notification_id=notification_new.notification_id,
+                recipient_id=recipient_id,
+            )
+        )
+
+        logger.info(
+            "Email changed notification created for new email",
+            notification_id=str(notification_new.notification_id),
+            recipient_id=str(recipient_id),
+            email=request.new_email,
+        )
+
+        logger.info(
+            "All email changed notifications created",
+            queued_count=len(created_notifications),
+        )
 
         return BatchNotificationResponse(
             notifications=created_notifications,

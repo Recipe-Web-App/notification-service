@@ -3,6 +3,7 @@
 from django.urls import path
 
 from .views import (
+    EmailChangedView,
     LivenessCheckView,
     MentionView,
     NewFollowerView,
@@ -93,6 +94,11 @@ urlpatterns = [
         "notifications/welcome",
         WelcomeView.as_view(),
         name="welcome",
+    ),
+    path(
+        "notifications/email-changed",
+        EmailChangedView.as_view(),
+        name="email-changed",
     ),
     # Admin endpoints (must come before notifications/<notification_id>)
     path(

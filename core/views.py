@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from core.auth.oauth2 import OAuth2Authentication
 from core.pagination import NotificationPageNumberPagination
 from core.schemas.notification import (
+    EmailChangedRequest,
     MentionRequest,
     NewFollowerRequest,
     NotificationDetail,
@@ -1158,6 +1159,79 @@ class WelcomeView(APIView):
 
             logger.info(
                 "Welcome notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (UserNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class EmailChangedView(APIView):
+    """API endpoint for sending email change notifications.
+
+    Sends security notifications when a user's email address is changed.
+    Notifications are sent to both the old and new email addresses.
+    Requires service-to-service authentication (client_credentials grant).
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send email changed notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids,
+                old_email, and new_email
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if not service-to-service authentication
+            404 Not Found if recipient user doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Email changed notification request received",
+            client_id=request.user.client_id if request.user else None,
+        )
+
+        # Validate request body with Pydantic
+        try:
+            email_changed_request = EmailChangedRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for email changed notification",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications
+        try:
+            response_data = (
+                system_notification_service.send_email_changed_notifications(
+                    request=email_changed_request,
+                )
+            )
+
+            logger.info(
+                "Email changed notifications queued successfully",
                 queued_count=response_data.queued_count,
             )
 

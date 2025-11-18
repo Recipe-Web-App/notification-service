@@ -37,8 +37,8 @@ class TestTemplateListEndpoint(TestCase):
         self.assertIn("templates", data)
         self.assertIsInstance(data["templates"], list)
 
-        # Verify template count (7 templates)
-        self.assertEqual(len(data["templates"]), 7)
+        # Verify template count (8 templates)
+        self.assertEqual(len(data["templates"]), 8)
 
         # Verify first template structure
         template = data["templates"][0]
@@ -62,7 +62,7 @@ class TestTemplateListEndpoint(TestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(len(data["templates"]), 7)
+        self.assertEqual(len(data["templates"]), 8)
 
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     def test_get_without_required_scope_returns_403(self, mock_authenticate):
@@ -113,6 +113,7 @@ class TestTemplateListEndpoint(TestCase):
             "mention",
             "password_reset",
             "recipe_trending",
+            "email_changed",
         ]
 
         self.assertEqual(sorted(template_types), sorted(expected_types))

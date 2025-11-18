@@ -1,0 +1,95 @@
+{% extends "emails/base.html" %}
+
+{% if is_old_email %}
+{% block title %}Security Alert: Email Address Changed{% endblock %}
+{% block header %}Security Alert{% endblock %}
+{% else %}
+{% block title %}Email Address Successfully Changed{% endblock %}
+{% block header %}Email Successfully Changed{% endblock %}
+{% endif %}
+
+{% block content %}
+<h2>Hello {{ recipient_name }},</h2>
+
+{% if is_old_email %}
+{# Security alert to OLD email address #}
+<div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
+    <p style="margin: 0 0 10px 0; color: #856404; font-weight: bold;">
+        ⚠️ Your email address has been changed
+    </p>
+    <p style="margin: 0; color: #856404;">
+        This notification was sent to your previous email address as a security measure.
+    </p>
+</div>
+
+<p style="font-size: 16px; color: #2c3e50;">
+    The email address associated with your Recipe Web App account has been changed from:
+</p>
+
+<div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0;">
+    <p style="margin: 0; color: #666;">
+        <strong>Previous email:</strong> {{ old_email }}
+    </p>
+    <p style="margin: 10px 0 0 0; color: #666;">
+        <strong>New email:</strong> {{ new_email }}
+    </p>
+</div>
+
+<p style="font-size: 16px; color: #2c3e50;">
+    <strong>Did you make this change?</strong>
+</p>
+
+<p style="color: #666;">
+    If you made this change, you can safely disregard this email. Your account is secure.
+</p>
+
+<p style="color: #666;">
+    If you did NOT authorize this change, please contact our support team immediately to secure your account.
+</p>
+
+<p style="text-align: center; margin-top: 30px;">
+    <a href="{{ app_url }}/support" class="button" style="background-color: #ff9800;">Contact Support</a>
+</p>
+
+{% else %}
+{# Confirmation to NEW email address #}
+<div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
+    <p style="margin: 0 0 10px 0; color: #155724; font-weight: bold;">
+        ✓ Your email address has been successfully changed
+    </p>
+    <p style="margin: 0; color: #155724;">
+        This notification confirms that your email update is complete.
+    </p>
+</div>
+
+<p style="font-size: 16px; color: #2c3e50;">
+    The email address for your Recipe Web App account has been updated to:
+</p>
+
+<div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 15px 0;">
+    <p style="margin: 0; color: #666;">
+        <strong>Previous email:</strong> {{ old_email }}
+    </p>
+    <p style="margin: 10px 0 0 0; color: #666;">
+        <strong>New email:</strong> {{ new_email }}
+    </p>
+</div>
+
+<p style="color: #666;">
+    From now on, all notifications and account-related emails will be sent to this address.
+</p>
+
+<p style="color: #666;">
+    You can continue using Recipe Web App without any interruption. If you need to make any further changes to your account, you can do so in your account settings.
+</p>
+
+<p style="text-align: center; margin-top: 30px;">
+    <a href="{{ app_url }}/settings" class="button" style="background-color: #28a745;">Go to Account Settings</a>
+</p>
+
+{% endif %}
+
+<p style="color: #999999; font-size: 12px; margin-top: 30px; font-style: italic; text-align: center;">
+    You received this email because your account's email address was changed. For security purposes, this notification was sent to {% if is_old_email %}your previous email address{% else %}your new email address{% endif %}.
+</p>
+{% endblock %}
