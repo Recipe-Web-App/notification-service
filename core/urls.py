@@ -5,6 +5,7 @@ from django.urls import path
 from .views import (
     EmailChangedView,
     LivenessCheckView,
+    MaintenanceView,
     MentionView,
     NewFollowerView,
     NotificationDetailView,
@@ -105,6 +106,11 @@ urlpatterns = [
         "notifications/password-changed",
         PasswordChangedView.as_view(),
         name="password-changed",
+    ),
+    path(
+        "notifications/maintenance",
+        MaintenanceView.as_view(),
+        name="maintenance",
     ),
     # Admin endpoints (must come before notifications/<notification_id>)
     path(

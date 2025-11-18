@@ -14,6 +14,7 @@ from core.auth.oauth2 import OAuth2Authentication
 from core.pagination import NotificationPageNumberPagination
 from core.schemas.notification import (
     EmailChangedRequest,
+    MaintenanceRequest,
     MentionRequest,
     NewFollowerRequest,
     NotificationDetail,
@@ -1315,6 +1316,85 @@ class PasswordChangedView(APIView):
         except Exception:
             # Let DRF exception handler handle it
             # (UserNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class MaintenanceView(APIView):
+    """API endpoint for sending maintenance notifications.
+
+    Broadcasts maintenance window notifications to users or admins.
+    Requires admin scope (notification:admin).
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send maintenance notifications.
+
+        Args:
+            request: HTTP request object containing maintenance_start,
+                maintenance_end, description, and optional adminOnly flag
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if missing notification:admin scope
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Maintenance notification request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Validate request body with Pydantic
+        try:
+            maintenance_request = MaintenanceRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for maintenance notification",
+                validation_errors=e.errors(),
+            )
+            # Clean errors to ensure JSON serializability
+            errors = []
+            for error in e.errors():
+                # Remove non-serializable context objects
+                clean_error = {
+                    k: str(v) if k == "ctx" else v
+                    for k, v in error.items()
+                    if k != "url"
+                }
+                errors.append(clean_error)
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications (includes admin scope check)
+        try:
+            response_data = system_notification_service.send_maintenance_notifications(
+                request=maintenance_request,
+            )
+
+            logger.info(
+                "Maintenance notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (PermissionDenied, etc.)
             raise
 
 

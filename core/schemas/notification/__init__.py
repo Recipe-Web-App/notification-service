@@ -8,6 +8,7 @@ from core.schemas.notification.notification_stats import NotificationStats
 from core.schemas.notification.request.email_changed_request import (
     EmailChangedRequest,
 )
+from core.schemas.notification.request.maintenance_request import MaintenanceRequest
 from core.schemas.notification.request.mention_request import MentionRequest
 from core.schemas.notification.request.new_follower_request import NewFollowerRequest
 from core.schemas.notification.request.password_changed_request import (
@@ -51,6 +52,7 @@ from core.schemas.notification.template_info import TemplateInfo
 __all__ = [
     "BatchNotificationResponse",
     "EmailChangedRequest",
+    "MaintenanceRequest",
     "MentionRequest",
     "NewFollowerRequest",
     "NotificationCreate",

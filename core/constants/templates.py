@@ -68,4 +68,11 @@ TEMPLATE_REGISTRY = [
         "required_fields": ["recipient_ids"],
         "endpoint": "/notifications/password-changed",
     },
+    {
+        "template_type": "maintenance",
+        "display_name": "Maintenance",
+        "description": "Platform maintenance window notification",
+        "required_fields": ["maintenance_start", "maintenance_end", "description"],
+        "endpoint": "/notifications/maintenance",
+    },
 ]

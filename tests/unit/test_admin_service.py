@@ -917,7 +917,7 @@ class TestAdminService(TestCase):
 
         templates = self.admin_service.get_all_templates()
 
-        self.assertEqual(len(templates), 9)
+        self.assertEqual(len(templates), 10)
 
     @patch("core.auth.context.get_current_user")
     def test_get_all_templates_each_has_required_fields(self, mock_get_current_user):
@@ -994,7 +994,7 @@ class TestAdminService(TestCase):
 
         templates = self.admin_service.get_all_templates()
 
-        self.assertEqual(len(templates), 9)
+        self.assertEqual(len(templates), 10)
 
     # Tests for retry_single_notification
 
