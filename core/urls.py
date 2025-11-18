@@ -10,6 +10,7 @@ from .views import (
     NotificationDetailView,
     NotificationRetryStatusView,
     NotificationStatsView,
+    PasswordChangedView,
     PasswordResetView,
     ReadinessCheckView,
     RecipeCollectedView,
@@ -99,6 +100,11 @@ urlpatterns = [
         "notifications/email-changed",
         EmailChangedView.as_view(),
         name="email-changed",
+    ),
+    path(
+        "notifications/password-changed",
+        PasswordChangedView.as_view(),
+        name="password-changed",
     ),
     # Admin endpoints (must come before notifications/<notification_id>)
     path(

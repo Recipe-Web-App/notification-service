@@ -61,4 +61,11 @@ TEMPLATE_REGISTRY = [
         "required_fields": ["recipient_ids", "old_email", "new_email"],
         "endpoint": "/notifications/email-changed",
     },
+    {
+        "template_type": "password_changed",
+        "display_name": "Password Changed",
+        "description": "Security notification for password change",
+        "required_fields": ["recipient_ids"],
+        "endpoint": "/notifications/password-changed",
+    },
 ]

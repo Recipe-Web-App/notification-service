@@ -18,6 +18,7 @@ from core.schemas.notification import (
     NewFollowerRequest,
     NotificationDetail,
     NotificationStats,
+    PasswordChangedRequest,
     PasswordResetRequest,
     RecipeCollectedRequest,
     RecipeCommentedRequest,
@@ -1232,6 +1233,77 @@ class EmailChangedView(APIView):
 
             logger.info(
                 "Email changed notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (UserNotFoundError, PermissionDenied, etc.)
+            raise
+
+
+class PasswordChangedView(APIView):
+    """API endpoint for sending password change notifications.
+
+    Sends security notifications when a user's password is changed.
+    Requires service-to-service authentication (client_credentials grant).
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send password changed notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if not service-to-service authentication
+            404 Not Found if recipient user doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Password changed notification request received",
+            client_id=request.user.client_id if request.user else None,
+        )
+
+        # Validate request body with Pydantic
+        try:
+            password_changed_request = PasswordChangedRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid request body for password changed notification",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service to send notifications
+        try:
+            response_data = (
+                system_notification_service.send_password_changed_notifications(
+                    request=password_changed_request,
+                )
+            )
+
+            logger.info(
+                "Password changed notifications queued successfully",
                 queued_count=response_data.queued_count,
             )
 
