@@ -19,6 +19,7 @@ from core.schemas.notification import (
     RecipePublishedRequest,
     RecipeRatedRequest,
     RecipeSharedRequest,
+    RecipeTrendingRequest,
 )
 from core.services.downstream.recipe_management_service_client import (
     recipe_management_service_client,
@@ -913,6 +914,96 @@ class RecipeNotificationService:
 
         logger.info(
             "All recipe featured notifications created",
+            queued_count=len(created_notifications),
+        )
+
+        return BatchNotificationResponse(
+            notifications=created_notifications,
+            queued_count=len(created_notifications),
+            message="Notifications queued successfully",
+        )
+
+    def send_recipe_trending_notifications(
+        self,
+        request: RecipeTrendingRequest,
+    ) -> BatchNotificationResponse:
+        """Send notifications when a recipe is trending.
+
+        Args:
+            request: Recipe trending request with recipient_ids, recipe_id,
+                and optional trending_metrics
+
+        Returns:
+            BatchNotificationResponse with created notifications
+
+        Raises:
+            RecipeNotFoundError: If recipe does not exist
+            UserNotFoundError: If recipient does not exist
+        """
+        authenticated_user = require_current_user()
+
+        logger.info(
+            "Processing recipe trending notifications",
+            recipe_id=str(request.recipe_id),
+            recipient_count=len(request.recipient_ids),
+            trending_metrics=request.trending_metrics,
+            user_id=authenticated_user.user_id,
+        )
+
+        try:
+            recipe = recipe_management_service_client.get_recipe(request.recipe_id)
+        except RecipeNotFoundError:
+            logger.warning("Recipe not found", recipe_id=str(request.recipe_id))
+            raise
+
+        recipe_url = f"{FRONTEND_BASE_URL}/recipes/{request.recipe_id}"
+
+        created_notifications = []
+
+        for recipient_id in request.recipient_ids:
+            recipient = user_client.get_user(str(recipient_id))
+
+            subject = f"Your recipe is trending: {recipe.title}"
+
+            message = render_to_string(
+                "emails/recipe_trending.html",
+                {
+                    "recipient_name": (recipient.full_name or recipient.username),
+                    "recipe_title": recipe.title,
+                    "recipe_url": recipe_url,
+                    "trending_metrics": request.trending_metrics,
+                },
+            )
+
+            notification = notification_service.create_notification(
+                recipient_email=recipient.email,
+                subject=subject,
+                message=message,
+                notification_type="email",
+                metadata={
+                    "template_type": "recipe_trending",
+                    "recipe_id": str(request.recipe_id),
+                    "trending_metrics": request.trending_metrics,
+                    "recipient_id": str(recipient_id),
+                },
+                auto_queue=True,
+            )
+
+            created_notifications.append(
+                NotificationCreated(
+                    notification_id=notification.notification_id,
+                    recipient_id=recipient_id,
+                )
+            )
+
+            logger.info(
+                "Notification created and queued",
+                notification_id=str(notification.notification_id),
+                recipient_id=str(recipient_id),
+            )
+
+        logger.info(
+            "All recipe trending notifications created",
             queued_count=len(created_notifications),
         )
 

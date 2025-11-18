@@ -27,6 +27,9 @@ from core.schemas.notification.request.recipe_rated_request import RecipeRatedRe
 from core.schemas.notification.request.recipe_shared_request import (
     RecipeSharedRequest,
 )
+from core.schemas.notification.request.recipe_trending_request import (
+    RecipeTrendingRequest,
+)
 from core.schemas.notification.request.welcome_request import WelcomeRequest
 from core.schemas.notification.response.batch_notification_response import (
     BatchNotificationResponse,
@@ -57,6 +60,7 @@ __all__ = [
     "RecipePublishedRequest",
     "RecipeRatedRequest",
     "RecipeSharedRequest",
+    "RecipeTrendingRequest",
     "TemplateInfo",
     "TemplateListResponse",
     "WelcomeRequest",

@@ -47,4 +47,11 @@ TEMPLATE_REGISTRY = [
         "required_fields": ["recipient_ids", "reset_token", "expiry_hours"],
         "endpoint": "/notifications/password-reset",
     },
+    {
+        "template_type": "recipe_trending",
+        "display_name": "Recipe Trending",
+        "description": "Notify recipe author when their recipe is trending",
+        "required_fields": ["recipient_ids", "recipe_id"],
+        "endpoint": "/notifications/recipe-trending",
+    },
 ]

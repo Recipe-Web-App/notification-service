@@ -25,6 +25,7 @@ from core.schemas.notification import (
     RecipePublishedRequest,
     RecipeRatedRequest,
     RecipeSharedRequest,
+    RecipeTrendingRequest,
     TemplateListResponse,
     WelcomeRequest,
 )
@@ -737,6 +738,91 @@ class RecipeFeaturedView(APIView):
 
             logger.info(
                 "Recipe featured notifications queued successfully",
+                queued_count=response_data.queued_count,
+            )
+
+            return Response(
+                response_data.model_dump(),
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        except Exception:
+            # Let DRF exception handler handle it
+            # (RecipeNotFoundError, UserNotFoundError, etc.)
+            raise
+
+
+class RecipeTrendingView(APIView):
+    """API endpoint for sending recipe trending notifications.
+
+    Sends email notification when a recipe is trending on the platform.
+    Requires notification:admin scope only (system-generated notification).
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        """Handle POST request to send recipe trending notifications.
+
+        Args:
+            request: HTTP request object containing recipient_ids, recipe_id,
+                and optional trending_metrics
+
+        Returns:
+            202 Accepted with BatchNotificationResponse if successful
+            400 Bad Request if validation fails
+            401 Unauthorized if authentication fails
+            403 Forbidden if user lacks admin scope
+            404 Not Found if recipe or recipient user doesn't exist
+            429 Too Many Requests if rate limit exceeded
+            500 Internal Server Error for unexpected errors
+        """
+        logger.info(
+            "Recipe trending notification request received",
+            user_id=request.user.user_id,
+        )
+
+        if not request.user.has_scope("notification:admin"):
+            logger.warning(
+                "Recipe trending notification rejected - insufficient scope",
+                user_id=request.user.user_id,
+                scopes=request.user.scopes,
+            )
+            return Response(
+                {
+                    "error": "forbidden",
+                    "message": "You do not have permission to perform this action",
+                    "detail": "Requires notification:admin scope",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            recipe_trending_request = RecipeTrendingRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Recipe trending notification validation failed",
+                errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request parameters",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            response_data = (
+                recipe_notification_service.send_recipe_trending_notifications(
+                    request=recipe_trending_request,
+                )
+            )
+
+            logger.info(
+                "Recipe trending notifications queued successfully",
                 queued_count=response_data.queued_count,
             )
 
