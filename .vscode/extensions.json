@@ -78,7 +78,6 @@
         // ========================================================================
         "mechatroner.rainbow-csv", // CSV highlighting
         "github.copilot", // GitHub Copilot (optional, requires subscription)
-        "visualstudioexptteam.vscodeintellicode" // AI-assisted IntelliSense
     ],
     // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
     "unwantedRecommendations": [
