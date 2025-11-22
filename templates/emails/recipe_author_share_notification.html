@@ -1,0 +1,34 @@
+{% extends "emails/base.html" %}
+
+{% block title %}{% if is_anonymous %}Someone{% else %}{{ sharer_name }}{% endif %} shared your recipe: {{ recipe_title }}{% endblock %}
+
+{% block header %}Your Recipe Was Shared!{% endblock %}
+
+{% block content %}
+<h2>Hi {{ author_name }}!</h2>
+
+{% if is_anonymous %}
+<p><strong>Great news!</strong> Someone shared your recipe with {{ recipient_count }} {% if recipient_count == 1 %}person{% else %}people{% endif %}!</p>
+{% else %}
+<p><strong>{{ sharer_name }}</strong> shared your recipe with {{ recipient_count }} {% if recipient_count == 1 %}person{% else %}people{% endif %}!</p>
+{% endif %}
+
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4CAF50;">
+    <h3 style="margin: 0; color: #2c3e50; font-size: 20px;">{{ recipe_title }}</h3>
+</div>
+
+{% if share_message %}
+<p style="color: #555; font-size: 14px; margin-top: 20px;"><strong>They included this message:</strong></p>
+<div style="background-color: #f0f4f8; padding: 15px; border-radius: 8px; margin: 10px 0 20px 0; border-left: 4px solid #4CAF50; font-style: italic;">
+    <p style="margin: 0; color: #2c3e50;">{{ share_message }}</p>
+</div>
+{% endif %}
+
+<p style="text-align: center;">
+    <a href="{{ recipe_url }}" class="button">View Your Recipe</a>
+</p>
+
+<p style="color: #666666; font-size: 14px; margin-top: 30px;">
+    Your recipes are making an impact! Keep creating delicious content.
+</p>
+{% endblock %}

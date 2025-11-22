@@ -18,8 +18,11 @@ from core.schemas.notification import (
     RecipeLikedRequest,
     RecipePublishedRequest,
     RecipeRatedRequest,
-    RecipeSharedRequest,
     RecipeTrendingRequest,
+    ShareRecipeRequest,
+)
+from core.services.downstream.media_management_service_client import (
+    media_management_service_client,
 )
 from core.services.downstream.recipe_management_service_client import (
     recipe_management_service_client,
@@ -460,17 +463,18 @@ class RecipeNotificationService:
             message="Notifications queued successfully",
         )
 
-    def send_recipe_shared_notifications(
+    def share_recipe_with_users(
         self,
-        request: RecipeSharedRequest,
+        request: ShareRecipeRequest,
     ) -> BatchNotificationResponse:
-        """Send notifications when a recipe is shared.
+        """Share a recipe with users and send notifications.
 
-        Privacy-aware sharing: sharer identity is only revealed if they
-        follow the recipe author (or admin scope is used).
+        Sends two types of notifications:
+        1. To recipients: Recipe preview with image, share message, sharer identity
+        2. To recipe author: Privacy-aware notification about the share
 
         Args:
-            request: Recipe shared request with recipient_ids, recipe_id,
+            request: Share recipe request with recipient_ids, recipe_id,
                 optional sharer_id, and optional share_message
 
         Returns:
@@ -484,7 +488,7 @@ class RecipeNotificationService:
         authenticated_user = require_current_user()
 
         logger.info(
-            "Processing recipe shared notifications",
+            "Processing share recipe request",
             recipe_id=str(request.recipe_id),
             sharer_id=str(request.sharer_id) if request.sharer_id else None,
             recipient_count=len(request.recipient_ids),
@@ -501,100 +505,76 @@ class RecipeNotificationService:
             )
             raise
 
-        # Determine if sharer identity should be revealed
-        sharer_name = None
-        is_anonymous = True
-
-        if request.sharer_id is not None:
-            has_admin_scope = authenticated_user.has_scope("notification:admin")
-
-            if has_admin_scope:
-                # Admin scope: always reveal sharer identity
-                logger.info(
-                    "Admin scope detected, revealing sharer identity",
-                    user_id=authenticated_user.user_id,
+        # Fetch recipe media for image preview
+        media_ids = media_management_service_client.get_recipe_media_ids(
+            request.recipe_id
+        )
+        recipe_image_url = None
+        if media_ids:
+            # Use the first media item as the recipe image
+            recipe_image_url = (
+                media_management_service_client.construct_media_download_url(
+                    media_ids[0]
                 )
-                sharer = user_client.get_user(str(request.sharer_id))
-                sharer_name = sharer.full_name or sharer.username
-                is_anonymous = False
-            else:
-                # User scope: check if sharer follows recipe author
-                logger.info(
-                    "Validating follower relationship for user scope",
-                    user_id=authenticated_user.user_id,
-                    sharer_id=str(request.sharer_id),
-                    author_id=str(recipe.user_id),
-                )
-
-                author_id = str(recipe.user_id)
-                sharer_id = str(request.sharer_id)
-
-                is_follower = user_client.validate_follower_relationship(
-                    follower_id=sharer_id,
-                    followee_id=author_id,
-                )
-
-                if is_follower:
-                    # Sharer follows author: reveal identity
-                    sharer = user_client.get_user(str(request.sharer_id))
-                    sharer_name = sharer.full_name or sharer.username
-                    is_anonymous = False
-                    logger.info(
-                        "Sharer follows author, revealing identity",
-                        sharer_id=sharer_id,
-                        author_id=author_id,
-                    )
-                else:
-                    # Sharer does not follow author: anonymous share
-                    logger.info(
-                        "Sharer does not follow author, sending anonymous notification",
-                        sharer_id=sharer_id,
-                        author_id=author_id,
-                    )
+            )
+            logger.info(
+                "Recipe image found",
+                recipe_id=request.recipe_id,
+                media_id=media_ids[0],
+                media_count=len(media_ids),
+            )
 
         # Construct recipe URL
         recipe_url = f"{FRONTEND_BASE_URL}/recipes/{request.recipe_id}"
 
-        # Create notifications for each recipient
+        # Get sharer information for recipient notifications (always revealed)
+        sharer_name = None
+        if request.sharer_id is not None:
+            sharer = user_client.get_user(str(request.sharer_id))
+            sharer_name = sharer.full_name or sharer.username
+
         created_notifications = []
 
+        # 1. Send notifications to recipients (people receiving the shared recipe)
         for recipient_id in request.recipient_ids:
             # Fetch recipient details
             recipient = user_client.get_user(str(recipient_id))
 
-            # Prepare notification subject and message
-            if is_anonymous:
-                subject = f"Someone shared a recipe with you: {recipe.title}"
-            else:
+            # Prepare notification subject
+            if sharer_name:
                 subject = f"{sharer_name} shared a recipe with you: {recipe.title}"
+            else:
+                subject = f"Someone shared a recipe with you: {recipe.title}"
 
+            # Render email with recipe preview
             message = render_to_string(
                 "emails/recipe_shared.html",
                 {
                     "recipient_name": (recipient.full_name or recipient.username),
                     "recipe_title": recipe.title,
+                    "recipe_description": recipe.description,
                     "recipe_url": recipe_url,
+                    "recipe_image_url": recipe_image_url,
                     "sharer_name": sharer_name,
                     "share_message": request.share_message,
-                    "is_anonymous": is_anonymous,
+                    "is_anonymous": sharer_name is None,
                 },
             )
 
-            # Create notification with metadata
+            # Create notification
             notification = notification_service.create_notification(
                 recipient_email=recipient.email,
                 subject=subject,
                 message=message,
                 notification_type="email",
                 metadata={
-                    "template_type": "recipe_shared",
+                    "template_type": "share_recipe_recipient",
                     "recipe_id": str(request.recipe_id),
                     "sharer_id": str(request.sharer_id) if request.sharer_id else None,
                     "recipient_id": str(recipient_id),
-                    "is_anonymous": is_anonymous,
                     "share_message": request.share_message,
                 },
-                auto_queue=True,  # Queue for async processing
+                auto_queue=True,
             )
 
             created_notifications.append(
@@ -605,15 +585,79 @@ class RecipeNotificationService:
             )
 
             logger.info(
-                "Notification created and queued",
+                "Recipient notification created and queued",
                 notification_id=str(notification.notification_id),
                 recipient_id=str(recipient_id),
-                is_anonymous=is_anonymous,
             )
 
+        # 2. Send notification to recipe author (privacy-aware)
+        author_id = recipe.user_id
+
+        # Determine if sharer identity should be revealed to author
+        author_sharer_name, author_is_anonymous = self._determine_author_privacy(
+            request.sharer_id, author_id, sharer_name, authenticated_user
+        )
+
+        # Fetch author details
+        author = user_client.get_user(str(author_id))
+
+        # Prepare author notification
+        recipient_count = len(request.recipient_ids)
+        if author_is_anonymous:
+            author_subject = f"Your recipe was shared: {recipe.title}"
+        else:
+            author_subject = f"{author_sharer_name} shared your recipe: {recipe.title}"
+
+        author_message = render_to_string(
+            "emails/recipe_author_share_notification.html",
+            {
+                "author_name": (author.full_name or author.username),
+                "recipe_title": recipe.title,
+                "recipe_url": recipe_url,
+                "sharer_name": author_sharer_name,
+                "recipient_count": recipient_count,
+                "share_message": request.share_message,
+                "is_anonymous": author_is_anonymous,
+            },
+        )
+
+        # Create author notification
+        author_notification = notification_service.create_notification(
+            recipient_email=author.email,
+            subject=author_subject,
+            message=author_message,
+            notification_type="email",
+            metadata={
+                "template_type": "share_recipe_author",
+                "recipe_id": str(request.recipe_id),
+                "sharer_id": str(request.sharer_id) if request.sharer_id else None,
+                "recipient_id": str(author_id),
+                "is_anonymous": author_is_anonymous,
+                "share_message": request.share_message,
+                "recipient_count": recipient_count,
+            },
+            auto_queue=True,
+        )
+
+        created_notifications.append(
+            NotificationCreated(
+                notification_id=author_notification.notification_id,
+                recipient_id=author_id,
+            )
+        )
+
         logger.info(
-            "All recipe shared notifications created",
+            "Author notification created and queued",
+            notification_id=str(author_notification.notification_id),
+            author_id=str(author_id),
+            is_anonymous=author_is_anonymous,
+        )
+
+        logger.info(
+            "All share recipe notifications created",
             queued_count=len(created_notifications),
+            recipient_notifications=len(request.recipient_ids),
+            author_notification=1,
         )
 
         return BatchNotificationResponse(
@@ -621,6 +665,47 @@ class RecipeNotificationService:
             queued_count=len(created_notifications),
             message="Notifications queued successfully",
         )
+
+    def _determine_author_privacy(
+        self, sharer_id, author_id, sharer_name, authenticated_user
+    ) -> tuple[str | None, bool]:
+        """Determine privacy settings for author notification.
+
+        Returns:
+            Tuple of (author_sharer_name, author_is_anonymous)
+        """
+        if sharer_id is None:
+            return None, True
+
+        has_admin_scope = authenticated_user.has_scope("notification:admin")
+
+        if has_admin_scope:
+            logger.info(
+                "Admin scope detected, revealing sharer identity to author",
+                user_id=authenticated_user.user_id,
+            )
+            return sharer_name, False
+
+        # User scope: check if sharer follows recipe author
+        is_follower = user_client.validate_follower_relationship(
+            follower_id=str(sharer_id),
+            followee_id=str(author_id),
+        )
+
+        if is_follower:
+            logger.info(
+                "Sharer follows author, revealing identity",
+                sharer_id=str(sharer_id),
+                author_id=str(author_id),
+            )
+            return sharer_name, False
+
+        logger.info(
+            "Sharer does not follow author, sending anonymous notification",
+            sharer_id=str(sharer_id),
+            author_id=str(author_id),
+        )
+        return None, True
 
     def _get_rating_data(self, recipe_id: int, rater_id) -> tuple[float, float, int]:
         """Get rating data from database.

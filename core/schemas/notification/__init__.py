@@ -31,11 +31,11 @@ from core.schemas.notification.request.recipe_published_request import (
     RecipePublishedRequest,
 )
 from core.schemas.notification.request.recipe_rated_request import RecipeRatedRequest
-from core.schemas.notification.request.recipe_shared_request import (
-    RecipeSharedRequest,
-)
 from core.schemas.notification.request.recipe_trending_request import (
     RecipeTrendingRequest,
+)
+from core.schemas.notification.request.share_recipe_request import (
+    ShareRecipeRequest,
 )
 from core.schemas.notification.request.welcome_request import WelcomeRequest
 from core.schemas.notification.response.batch_notification_response import (
@@ -69,8 +69,8 @@ __all__ = [
     "RecipeLikedRequest",
     "RecipePublishedRequest",
     "RecipeRatedRequest",
-    "RecipeSharedRequest",
     "RecipeTrendingRequest",
+    "ShareRecipeRequest",
     "TemplateInfo",
     "TemplateListResponse",
     "WelcomeRequest",

@@ -1,4 +1,4 @@
-"""Schema for recipe shared notification request."""
+"""Schema for share recipe request."""
 
 from uuid import UUID
 
@@ -7,14 +7,18 @@ from pydantic import ConfigDict, Field
 from core.schemas.base_schema_model import BaseSchemaModel
 
 
-class RecipeSharedRequest(BaseSchemaModel):
-    """Request schema for recipe shared notifications.
+class ShareRecipeRequest(BaseSchemaModel):
+    """Request schema for sharing a recipe with users.
+
+    This endpoint shares a recipe with recipient users and sends notifications
+    to both the recipients (with recipe preview) and the recipe author
+    (privacy-aware notification about the share).
 
     Attributes:
-        recipient_ids: List of recipient user IDs (typically the recipe author).
+        recipient_ids: List of user IDs to share the recipe with.
                       Must contain at least 1 and at most 100 items.
-        recipe_id: ID of the shared recipe.
-        sharer_id: Optional UUID of the user who shared the recipe.
+        recipe_id: ID of the recipe being shared.
+        sharer_id: Optional UUID of the user sharing the recipe.
         share_message: Optional message from the sharer about why they're sharing.
     """
 
@@ -33,21 +37,22 @@ class RecipeSharedRequest(BaseSchemaModel):
         ...,
         min_length=1,
         max_length=100,
-        description="List of recipient user IDs (typically the recipe author)",
+        description="List of user IDs to share the recipe with",
     )
     recipe_id: int = Field(
         ...,
         description=(
-            "ID of the shared recipe. Service will fetch recipe "
+            "ID of the recipe being shared. Service will fetch recipe "
             "details from recipe-management-service."
         ),
     )
     sharer_id: UUID | None = Field(
         default=None,
         description=(
-            "Optional UUID of the user who shared the recipe. "
-            "Only included in notification if sharer has public profile "
-            "or follows recipient. Service will fetch sharer details "
+            "Optional UUID of the user sharing the recipe. "
+            "Identity revealed to recipients (deliberate share). "
+            "For recipe author notification, identity only revealed if sharer "
+            "follows author or has admin scope. Service will fetch sharer details "
             "from user-management-service."
         ),
     )
@@ -55,6 +60,7 @@ class RecipeSharedRequest(BaseSchemaModel):
         default=None,
         max_length=500,
         description=(
-            "Optional message from the sharer about why they're sharing the recipe"
+            "Optional message from the sharer about why they're sharing the recipe. "
+            "Shown to both recipients and recipe author."
         ),
     )

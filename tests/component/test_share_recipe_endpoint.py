@@ -1,6 +1,6 @@
-"""Component tests for recipe-shared notification endpoint.
+"""Component tests for share-recipe endpoint.
 
-This module tests the /notifications/recipe-shared endpoint through the
+This module tests the /notifications/share-recipe endpoint through the
 full Django request/response cycle, including authentication, authorization,
 and HTTP handling.
 """
@@ -18,17 +18,18 @@ from core.schemas.recipe import RecipeDto
 from core.schemas.user import UserSearchResult
 
 
-class TestRecipeSharedEndpoint(TestCase):
-    """Component tests for recipe shared notification endpoint."""
+class TestShareRecipeEndpoint(TestCase):
+    """Component tests for share recipe endpoint."""
 
     def setUp(self):
         """Set up test fixtures."""
         self.client = Client()
-        self.url = "/api/v1/notification/notifications/recipe-shared"
+        self.url = "/api/v1/notification/notifications/share-recipe"
 
         # Test data
         self.recipe_id = 123
         self.sharer_id = uuid4()
+        self.recipe_author_id = uuid4()
         self.recipient_ids = [uuid4(), uuid4()]
 
         self.request_data = {
@@ -41,10 +42,11 @@ class TestRecipeSharedEndpoint(TestCase):
         # Mock recipe
         self.mock_recipe = RecipeDto(
             recipe_id=self.recipe_id,
-            user_id=uuid4(),
+            user_id=self.recipe_author_id,
             title="Test Recipe",
             servings=Decimal("4"),
             created_at="2025-10-29T12:00:00Z",
+            description="A delicious test recipe",
         )
 
         # Mock user
@@ -60,6 +62,7 @@ class TestRecipeSharedEndpoint(TestCase):
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
+    @patch("core.services.recipe_notification_service.media_management_service_client")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -68,10 +71,11 @@ class TestRecipeSharedEndpoint(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_media_client,
         mock_authenticate,
         mock_get_current_user,
     ):
-        """Test POST with admin scope returns HTTP 202."""
+        """Test POST with admin scope returns HTTP 202 with dual notifications."""
         # Setup authentication
         admin_user = OAuth2User(
             user_id=str(uuid4()),
@@ -84,6 +88,7 @@ class TestRecipeSharedEndpoint(TestCase):
         # Setup service mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
+        mock_media_client.get_recipe_media_ids.return_value = []
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
@@ -96,16 +101,17 @@ class TestRecipeSharedEndpoint(TestCase):
             content_type="application/json",
         )
 
-        # Assertions
+        # Assertions - expect 3 notifications: 2 recipients + 1 author
         self.assertEqual(response.status_code, 202)
 
         data = response.json()
-        self.assertEqual(data["queued_count"], 2)
-        self.assertEqual(len(data["notifications"]), 2)
+        self.assertEqual(data["queued_count"], 3)
+        self.assertEqual(len(data["notifications"]), 3)
         self.assertEqual(data["message"], "Notifications queued successfully")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
+    @patch("core.services.recipe_notification_service.media_management_service_client")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -114,6 +120,7 @@ class TestRecipeSharedEndpoint(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_media_client,
         mock_authenticate,
         mock_get_current_user,
     ):
@@ -131,6 +138,7 @@ class TestRecipeSharedEndpoint(TestCase):
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
         mock_user_client.validate_follower_relationship.return_value = True
+        mock_media_client.get_recipe_media_ids.return_value = []
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
@@ -148,6 +156,7 @@ class TestRecipeSharedEndpoint(TestCase):
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
+    @patch("core.services.recipe_notification_service.media_management_service_client")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -156,6 +165,7 @@ class TestRecipeSharedEndpoint(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_media_client,
         mock_authenticate,
         mock_get_current_user,
     ):
@@ -171,9 +181,10 @@ class TestRecipeSharedEndpoint(TestCase):
 
         # Setup service mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        # Sharer doesn't follow author - should send anonymous notification
+        # Sharer doesn't follow author - should send anonymous notification to author
         mock_user_client.validate_follower_relationship.return_value = False
         mock_user_client.get_user.return_value = self.mock_user
+        mock_media_client.get_recipe_media_ids.return_value = []
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
@@ -186,7 +197,7 @@ class TestRecipeSharedEndpoint(TestCase):
             content_type="application/json",
         )
 
-        # Assertions - should still succeed with anonymous notification
+        # Assertions - should still succeed with anonymous author notification
         self.assertEqual(response.status_code, 202)
 
     @patch("core.auth.context.get_current_user")
@@ -367,12 +378,14 @@ class TestRecipeSharedEndpoint(TestCase):
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
+    @patch("core.services.recipe_notification_service.media_management_service_client")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     def test_post_with_nonexistent_sharer_returns_404(
         self,
         mock_user_client,
         mock_recipe_client,
+        mock_media_client,
         mock_authenticate,
         mock_get_current_user,
     ):
@@ -388,6 +401,7 @@ class TestRecipeSharedEndpoint(TestCase):
 
         # Setup mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
+        mock_media_client.get_recipe_media_ids.return_value = []
         mock_user_client.get_user.side_effect = UserNotFoundError(
             user_id=str(self.sharer_id)
         )
@@ -404,6 +418,7 @@ class TestRecipeSharedEndpoint(TestCase):
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
+    @patch("core.services.recipe_notification_service.media_management_service_client")
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
@@ -412,10 +427,11 @@ class TestRecipeSharedEndpoint(TestCase):
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
+        mock_media_client,
         mock_authenticate,
         mock_get_current_user,
     ):
-        """Test response contains notification IDs and count."""
+        """Test response contains notification IDs and count for all notifications."""
         # Setup authentication
         admin_user = OAuth2User(
             user_id=str(uuid4()),
@@ -428,6 +444,7 @@ class TestRecipeSharedEndpoint(TestCase):
         # Setup service mocks
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
+        mock_media_client.get_recipe_media_ids.return_value = []
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
@@ -440,13 +457,13 @@ class TestRecipeSharedEndpoint(TestCase):
             content_type="application/json",
         )
 
-        # Assertions
+        # Assertions - expect 3 notifications (2 recipients + 1 author)
         self.assertEqual(response.status_code, 202)
         data = response.json()
         self.assertIn("notifications", data)
         self.assertIn("queued_count", data)
         self.assertIn("message", data)
-        self.assertEqual(len(data["notifications"]), 2)
+        self.assertEqual(len(data["notifications"]), 3)
         for notification in data["notifications"]:
             self.assertIn("notification_id", notification)
             self.assertIn("recipient_id", notification)
