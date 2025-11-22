@@ -19,12 +19,31 @@
 </div>
 {% endif %}
 
-<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4CAF50;">
-    <h3 style="margin: 0; color: #2c3e50; font-size: 20px;">{{ recipe_title }}</h3>
+<!-- Recipe Preview Card -->
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #e0e0e0;">
+    <!-- Recipe Image -->
+    {% if recipe_image_url %}
+    <div style="text-align: center; margin-bottom: 15px;">
+        <img src="{{ recipe_image_url }}" alt="{{ recipe_title }}" style="max-width: 100%; height: auto; border-radius: 8px; max-height: 300px; object-fit: cover;">
+    </div>
+    {% else %}
+    <!-- Placeholder image if no recipe image -->
+    <div style="text-align: center; margin-bottom: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 60px 20px; border-radius: 8px;">
+        <p style="margin: 0; color: #ffffff; font-size: 48px;">🍳</p>
+    </div>
+    {% endif %}
+
+    <!-- Recipe Title -->
+    <h3 style="margin: 0 0 10px 0; color: #2c3e50; font-size: 22px; font-weight: bold;">{{ recipe_title }}</h3>
+
+    <!-- Recipe Description -->
+    {% if recipe_description %}
+    <p style="margin: 10px 0; color: #555; font-size: 14px; line-height: 1.6;">{{ recipe_description }}</p>
+    {% endif %}
 </div>
 
 <p style="text-align: center;">
-    <a href="{{ recipe_url }}" class="button">View Recipe</a>
+    <a href="{{ recipe_url }}" class="button">View Full Recipe</a>
 </p>
 
 <p style="color: #666666; font-size: 14px; margin-top: 30px;">

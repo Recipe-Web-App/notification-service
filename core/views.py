@@ -27,8 +27,8 @@ from core.schemas.notification import (
     RecipeLikedRequest,
     RecipePublishedRequest,
     RecipeRatedRequest,
-    RecipeSharedRequest,
     RecipeTrendingRequest,
+    ShareRecipeRequest,
     TemplateListResponse,
     WelcomeRequest,
 )
@@ -390,11 +390,16 @@ class RecipeCommentedView(APIView):
             raise
 
 
-class RecipeSharedView(APIView):
-    """API endpoint for sending recipe shared notifications.
+class ShareRecipeView(APIView):
+    """API endpoint for sharing recipes with users.
 
-    Sends email notification to recipients when a recipe is shared.
-    Privacy-aware: sharer identity revealed only if they follow recipe author.
+    Shares a recipe with recipient users and sends dual notifications:
+    1. To recipients: Recipe preview with image and share message
+    2. To recipe author: Privacy-aware notification about the share
+
+    Privacy: Sharer identity always revealed to recipients, but only revealed
+    to recipe author if sharer follows them or admin scope is used.
+
     Requires notification:user or notification:admin scope.
     """
 
@@ -402,7 +407,7 @@ class RecipeSharedView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request):
-        """Handle POST request to send recipe shared notifications.
+        """Handle POST request to share recipe with users.
 
         Args:
             request: HTTP request object containing recipient_ids,
@@ -418,7 +423,7 @@ class RecipeSharedView(APIView):
             500 Internal Server Error for unexpected errors
         """
         logger.info(
-            "Recipe shared notification request received",
+            "Share recipe request received",
             user_id=request.user.user_id if request.user else None,
         )
 
@@ -444,10 +449,10 @@ class RecipeSharedView(APIView):
 
         # Validate request body with Pydantic
         try:
-            recipe_shared_request = RecipeSharedRequest(**request.data)
+            share_recipe_request = ShareRecipeRequest(**request.data)
         except ValidationError as e:
             logger.warning(
-                "Invalid request body for recipe shared notification",
+                "Invalid request body for share recipe",
                 validation_errors=e.errors(),
             )
             return Response(
@@ -459,16 +464,14 @@ class RecipeSharedView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Call service to send notifications
+        # Call service to share recipe and send notifications
         try:
-            response_data = (
-                recipe_notification_service.send_recipe_shared_notifications(
-                    request=recipe_shared_request,
-                )
+            response_data = recipe_notification_service.share_recipe_with_users(
+                request=share_recipe_request,
             )
 
             logger.info(
-                "Recipe shared notifications queued successfully",
+                "Share recipe notifications queued successfully",
                 queued_count=response_data.queued_count,
             )
 
