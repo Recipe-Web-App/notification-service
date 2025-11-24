@@ -43,7 +43,7 @@ test-coverage = "tests.run_tests:run_coverage"
 pre-commit = "^4.4.0"
 
 # Linting and Formatting
-ruff = "^0.14.4"
+ruff = "^0.14.6"
 isort = "^7.0.0"
 
 # Type Checking
@@ -93,7 +93,7 @@ locust = "^2.42.2"
 
 # AWS/SQS mocking (for LocalStack)
 boto3 = "^1.40.69"
-moto = {extras = ["sqs", "s3"], version = "^5.1.16"}
+moto = {extras = ["sqs", "s3"], version = "^5.1.17"}
 
 # ============================================================================
 # Tool Configurations
