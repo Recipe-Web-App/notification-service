@@ -69,7 +69,7 @@ commitizen = "^4.10.0"
 
 [tool.poetry.group.test.dependencies]
 # Testing frameworks
-pytest = "^8.0.0"
+pytest = "^9.0.1"
 pytest-django = "^4.7.0"
 pytest-cov = "^7.0.0"
 

@@ -1601,14 +1601,14 @@ files = [
 
 [[package]]
 name = "locust"
-version = "2.42.2"
+version = "2.42.5"
 description = "Developer-friendly load testing framework"
 optional = false
 python-versions = ">=3.10"
 groups = ["test"]
 files = [
-    {file = "locust-2.42.2-py3-none-any.whl", hash = "sha256:6596c99e9208284ae12c8d7830a360e8336f9f29bac17c80dfa4f89c30abe950"},
-    {file = "locust-2.42.2.tar.gz", hash = "sha256:bbb4da7e1ce41799158c3e77ec7f64c7a754f50ae63ec772d57fc4440775541e"},
+    {file = "locust-2.42.5-py3-none-any.whl", hash = "sha256:fa654eb501bf4bad665310ead59c9d7b209d057717795fbbcc977f61af1fdf64"},
+    {file = "locust-2.42.5.tar.gz", hash = "sha256:83b8cfc38bd88b3d9daf9790be24239356ccd1160d9b357fa9c7af32907a8860"},
 ]
 
 [package.dependencies]
@@ -1618,10 +1618,10 @@ flask-cors = ">=3.0.10"
 flask-login = ">=0.6.3"
 gevent = ">=24.10.1,<25.8.1 || >25.8.1,<26.0.0"
 geventhttpclient = ">=2.3.1"
-locust-cloud = ">=1.28.0"
+locust-cloud = ">=1.29.0"
 msgpack = ">=1.0.0"
 psutil = ">=5.9.1"
-pytest = ">=8.3.3,<9.0.0"
+pytest = ">=8.3.3,<10"
 python-engineio = ">=4.12.2"
 python-socketio = {version = ">=5.13.0", extras = ["client"]}
 pywin32 = {version = "*", markers = "sys_platform == \"win32\""}
@@ -1633,17 +1633,18 @@ werkzeug = ">=2.0.0"
 dns = ["dnspython (>=2.8.0)"]
 milvus = ["pymilvus (>=2.5.0)"]
 mqtt = ["paho-mqtt (>=2.1.0)"]
+otel = ["opentelemetry-exporter-otlp-proto-grpc (>=1.38.0)", "opentelemetry-exporter-otlp-proto-http (>=1.38.0)", "opentelemetry-instrumentation-requests (>=0.59b0)", "opentelemetry-instrumentation-urllib3 (>=0.59b0)", "opentelemetry-sdk (>=1.38.0)"]
 
 [[package]]
 name = "locust-cloud"
-version = "1.28.1"
+version = "1.29.0"
 description = "Locust Cloud"
 optional = false
 python-versions = ">=3.10"
 groups = ["test"]
 files = [
-    {file = "locust_cloud-1.28.1-py3-none-any.whl", hash = "sha256:fadfd423dd83057b96c4332e8fdb94ccacaecbb6b8ae837212c42276b8b5c22e"},
-    {file = "locust_cloud-1.28.1.tar.gz", hash = "sha256:c010a80dbd26fbd791a9c1202c63c59ddb96e9f3cc4ff5af48a9ee858057a56c"},
+    {file = "locust_cloud-1.29.0-py3-none-any.whl", hash = "sha256:abe5d1ac82f7b39d5a26e5ef8263091f12f9c0d4416b7029b12461f67e03c6ec"},
+    {file = "locust_cloud-1.29.0.tar.gz", hash = "sha256:2fd2465eef49253e9c39ac6f7d7ac18588159ceff9520218860de0d798581e44"},
 ]
 
 [package.dependencies]
@@ -2434,20 +2435,20 @@ tests = ["coverage[toml] (==5.0.4)", "pytest (>=6.0.0,<7.0.0)"]
 
 [[package]]
 name = "pytest"
-version = "8.4.2"
+version = "9.0.1"
 description = "pytest: simple powerful testing with Python"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["test"]
 files = [
-    {file = "pytest-8.4.2-py3-none-any.whl", hash = "sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"},
-    {file = "pytest-8.4.2.tar.gz", hash = "sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01"},
+    {file = "pytest-9.0.1-py3-none-any.whl", hash = "sha256:67be0030d194df2dfa7b556f2e56fb3c3315bd5c8822c6951162b92b32ce7dad"},
+    {file = "pytest-9.0.1.tar.gz", hash = "sha256:3e9c069ea73583e255c3b21cf46b8d3c56f6e3a1a8f6da94ccb0fcf57b9d73c8"},
 ]
 
 [package.dependencies]
 colorama = {version = ">=0.4", markers = "sys_platform == \"win32\""}
-iniconfig = ">=1"
-packaging = ">=20"
+iniconfig = ">=1.0.1"
+packaging = ">=22"
 pluggy = ">=1.5,<2"
 pygments = ">=2.7.2"
 
@@ -3456,4 +3457,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~=3.14"
-content-hash = "08d7c49b7e393dc8ddc5961d271442337203cdc8a41b5b88c981ce167a7303a3"
+content-hash = "adf412df2e034ee40e6b8b9ea15c749531c415756810e6b4806daee09f92e0ff"
