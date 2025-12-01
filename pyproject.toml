@@ -43,12 +43,12 @@ test-coverage = "tests.run_tests:run_coverage"
 pre-commit = "^4.5.0"
 
 # Linting and Formatting
-ruff = "^0.14.6"
+ruff = "^0.14.7"
 isort = "^7.0.0"
 
 # Type Checking
 mypy = "^1.8.0"
-django-stubs = "^5.2.7"
+django-stubs = "^5.2.8"
 djangorestframework-stubs = "^3.14.0"
 types-requests = "^2.31.0"
 
@@ -89,11 +89,11 @@ freezegun = "^1.4.0"
 django-test-migrations = "^1.3.0"
 
 # Performance testing
-locust = "^2.42.2"
+locust = "^2.42.6"
 
 # AWS/SQS mocking (for LocalStack)
 boto3 = "^1.41.2"
-moto = {extras = ["sqs", "s3"], version = "^5.1.17"}
+moto = {extras = ["sqs", "s3"], version = "^5.1.18"}
 
 # ============================================================================
 # Tool Configurations
