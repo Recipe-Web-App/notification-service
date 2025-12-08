@@ -43,13 +43,13 @@ test-coverage = "tests.run_tests:run_coverage"
 pre-commit = "^4.5.0"
 
 # Linting and Formatting
-ruff = "^0.14.7"
+ruff = "^0.14.8"
 isort = "^7.0.0"
 
 # Type Checking
 mypy = "^1.19.0"
 django-stubs = "^5.2.8"
-djangorestframework-stubs = "^3.14.0"
+djangorestframework-stubs = "^3.16.6"
 types-requests = "^2.31.0"
 
 # Documentation Coverage
@@ -69,7 +69,7 @@ commitizen = "^4.10.0"
 
 [tool.poetry.group.test.dependencies]
 # Testing frameworks
-pytest = "^9.0.1"
+pytest = "^9.0.2"
 pytest-django = "^4.7.0"
 pytest-cov = "^7.0.0"
 
@@ -92,7 +92,7 @@ django-test-migrations = "^1.3.0"
 locust = "^2.42.6"
 
 # AWS/SQS mocking (for LocalStack)
-boto3 = "^1.42.0"
+boto3 = "^1.42.5"
 moto = {extras = ["sqs", "s3"], version = "^5.1.18"}
 
 # ============================================================================
