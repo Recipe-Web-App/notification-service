@@ -157,22 +157,10 @@ print_separator "-"
 kubectl apply -f "${CONFIG_DIR}/networkpolicy.yaml"
 
 print_separator "="
-echo -e "${CYAN}⏳ Waiting for Ingress controller to be ready...${NC}"
+echo -e "${CYAN}📥 Applying Gateway HTTPRoute...${NC}"
 print_separator "-"
 
-kubectl wait --namespace ingress-nginx \
-    --for=condition=Ready pod \
-    --selector=app.kubernetes.io/component=controller \
-    --timeout=90s
-
-print_separator "-"
-print_status "ok" "Ingress controller is running."
-
-print_separator "="
-echo -e "${CYAN}📥 Applying Ingress resource...${NC}"
-print_separator "-"
-
-kubectl apply -f "${CONFIG_DIR}/ingress.yaml"
+kubectl apply -f "${CONFIG_DIR}/gateway-route.yaml"
 
 print_separator "="
 echo -e "${CYAN}⏳ Waiting for Notification Service pod to be ready...${NC}"
@@ -187,7 +175,7 @@ print_separator "-"
 print_status "ok" "Notification Service is up and running in namespace '$NAMESPACE'."
 
 print_separator "="
-echo -e "${CYAN}🔗 Setting up /etc/hosts for notification-service.local...${NC}"
+echo -e "${CYAN}🔗 Setting up /etc/hosts for sous-chef-proxy.local...${NC}"
 print_separator "-"
 
 MINIKUBE_IP=$(minikube ip)
@@ -201,19 +189,19 @@ echo "$MINIKUBE_IP notification-service.local" | tee -a /etc/hosts
 print_status "ok" "/etc/hosts updated with notification-service.local pointing to $MINIKUBE_IP"
 
 print_separator "="
-echo -e "${GREEN}🌍 You can now access your app at: http://notification-service.local${NC}"
+echo -e "${GREEN}🌍 You can now access your app at: http://sous-chef-proxy.local${NC}"
 
 POD_NAME=$(kubectl get pods -n "$NAMESPACE" -l app=notification-service -o jsonpath="{.items[0].metadata.name}")
 SERVICE_JSON=$(kubectl get svc notification-service -n "$NAMESPACE" -o json)
 SERVICE_IP=$(echo "$SERVICE_JSON" | jq -r '.spec.clusterIP')
 SERVICE_PORT=$(echo "$SERVICE_JSON" | jq -r '.spec.ports[0].port')
-INGRESS_HOSTS=$(kubectl get ingress -n "$NAMESPACE" -o jsonpath='{.items[*].spec.rules[*].host}' | tr ' ' '\n' | sort -u | paste -sd ',' -)
+GATEWAY_HOSTS=$(kubectl get httproute -n "$NAMESPACE" -o jsonpath='{.items[*].spec.hostnames[*]}' | tr ' ' '\n' | sort -u | paste -sd ',' -)
 
 print_separator "="
 echo -e "${CYAN}🛰️  Access info:${NC}"
 echo "  Pod: $POD_NAME"
 echo "  Service: $SERVICE_IP:$SERVICE_PORT"
-echo "  Ingress Hosts: $INGRESS_HOSTS"
-echo "  Readiness Check: http://notification-service.local/api/v1/notification/health/ready"
-echo "  Liveness Check: http://notification-service.local/api/v1/notification/health/live"
+echo "  Gateway Hosts: $GATEWAY_HOSTS"
+echo "  Readiness Check: http://sous-chef-proxy.local/api/v1/notification/health/ready"
+echo "  Liveness Check: http://sous-chef-proxy.local/api/v1/notification/health/live"
 print_separator "="

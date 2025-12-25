@@ -105,7 +105,7 @@ kubectl wait --namespace="$NAMESPACE" \
 
 print_separator "="
 print_status "ok" "Notification Service updated successfully!"
-echo -e "${CYAN}🌍 Access at: http://notification-service.local${NC}"
+echo -e "${CYAN}🌍 Access at: http://sous-chef-proxy.local${NC}"
 
 # Show current status
 print_separator

@@ -159,10 +159,10 @@ if command_exists minikube && minikube status >/dev/null 2>&1; then
         echo -e "${PURPLE}🔍 Testing all health endpoints...${NC}"
 
         # Test readiness endpoint
-        test_endpoint "http://notification-service.local/api/v1/notification/health/ready" "Readiness Probe" 3
+        test_endpoint "http://sous-chef-proxy.local/api/v1/notification/health/ready" "Readiness Probe" 3
 
         # Test liveness endpoint
-        test_endpoint "http://notification-service.local/api/v1/notification/health/live" "Liveness Probe" 3
+        test_endpoint "http://sous-chef-proxy.local/api/v1/notification/health/live" "Liveness Probe" 3
     fi
 else
     print_status "warning" "Cannot test health endpoints - Minikube IP not available"
@@ -273,14 +273,14 @@ if command_exists minikube && minikube status >/dev/null 2>&1; then
     MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "unknown")
     echo "🔗 Minikube IP: $MINIKUBE_IP"
 
-    if grep -q "notification-service.local" /etc/hosts 2>/dev/null; then
-        print_status "ok" "/etc/hosts entry exists for notification-service.local"
+    if grep -q "sous-chef-proxy.local" /etc/hosts 2>/dev/null; then
+        print_status "ok" "/etc/hosts entry exists for sous-chef-proxy.local"
         echo "🌍 Application URLs:"
-        echo "   • API Base: http://notification-service.local/api/v1/notification"
-        echo "   • Ready: http://notification-service.local/api/v1/notification/health/ready"
-        echo "   • Live: http://notification-service.local/api/v1/notification/health/live"
+        echo "   • API Base: http://sous-chef-proxy.local/api/v1/notification"
+        echo "   • Ready: http://sous-chef-proxy.local/api/v1/notification/health/ready"
+        echo "   • Live: http://sous-chef-proxy.local/api/v1/notification/health/live"
     else
-        print_status "warning" "/etc/hosts entry missing. Add: $MINIKUBE_IP notification-service.local"
+        print_status "warning" "/etc/hosts entry missing. Add: $MINIKUBE_IP sous-chef-proxy.local"
     fi
 fi
 

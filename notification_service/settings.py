@@ -47,7 +47,7 @@ SECRET_KEY = "django-insecure-(s35utk=+7u0o73z_b46dx0d4@n8&2#)f+5(r4eq(5)l%9(ld#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "notification-service.local", "*"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "sous-chef-proxy.local", "*"]
 
 
 # Application definition
