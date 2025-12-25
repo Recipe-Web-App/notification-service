@@ -125,8 +125,8 @@ curl http://localhost:8000/api/v1/notification/health/ready
 curl http://localhost:8000/api/v1/notification/health/live
 
 # Kubernetes (after deployment)
-curl http://notification-service.local/api/v1/notification/health/ready
-curl http://notification-service.local/api/v1/notification/health/live
+curl http://sous-chef-proxy.local/api/v1/notification/health/ready
+curl http://sous-chef-proxy.local/api/v1/notification/health/live
 ```
 
 ## Kubernetes Deployment
@@ -214,10 +214,10 @@ Remove all Kubernetes resources:
 ### Accessing the Service
 
 After deployment, the service is accessible at:
-- **Ingress URL**: `http://notification-service.local/api/v1/notification/`
+- **Ingress URL**: `http://sous-chef-proxy.local/api/v1/notification/`
 - **Health Checks**:
-  - Readiness: `http://notification-service.local/api/v1/notification/health/ready`
-  - Liveness: `http://notification-service.local/api/v1/notification/health/live`
+  - Readiness: `http://sous-chef-proxy.local/api/v1/notification/health/ready`
+  - Liveness: `http://sous-chef-proxy.local/api/v1/notification/health/live`
 
 ### Kubernetes Resources
 

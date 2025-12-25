@@ -334,7 +334,7 @@ The service runs in Kubernetes (Minikube for local development):
 - **Namespace**: `notification-service`
 - **Deployment**: Django app with gunicorn (4 workers, 2 threads)
 - **Service**: ClusterIP on port 8000
-- **Ingress**: Routes `/api/v1/notification` to service (accessible at `http://notification-service.local`)
+- **Ingress**: Routes `/api/v1/notification` to service (accessible at `http://sous-chef-proxy.local`)
 - **ConfigMap**: Database and Redis configuration
 - **Secret**: Sensitive credentials
 
