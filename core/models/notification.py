@@ -1,153 +1,97 @@
-"""Notification model."""
+"""Notification model for user-facing notification data.
+
+This module defines the core notification model which stores user-facing
+notification data. Delivery tracking is handled separately in the
+NotificationStatus model.
+"""
 
 import uuid
 from typing import ClassVar
 
 from django.db import models
-from django.utils import timezone
 
 
 class Notification(models.Model):
-    """Notification model for tracking email and other notifications.
+    """Core notification model storing user-facing notification data.
 
-    This model stores notification history with full audit trail.
-    Notifications are queued via Django-RQ for reliable async delivery.
+    This model represents a single notification for a user. The title and
+    message are computed on-the-fly from notification_category and
+    notification_data - they are NOT stored in the database.
+
+    Delivery tracking (status, retries, timestamps) is handled separately
+    in the NotificationStatus model, which tracks delivery per channel
+    (EMAIL, IN_APP, PUSH, SMS).
+
+    Attributes:
+        notification_id: Unique identifier for the notification.
+        user: The user receiving this notification.
+        notification_category: Category determining template and rendering.
+        is_read: Whether the user has read this notification.
+        is_deleted: Soft delete flag for user-initiated deletion.
+        notification_data: JSONB containing template params and templateVersion.
+        created_at: When the notification was created.
+        updated_at: When the notification was last updated.
     """
 
-    # Status choices
-    PENDING = "pending"
-    QUEUED = "queued"
-    SENT = "sent"
-    FAILED = "failed"
-
-    STATUS_CHOICES: ClassVar[list[tuple[str, str]]] = [
-        (PENDING, "Pending"),
-        (QUEUED, "Queued"),
-        (SENT, "Sent"),
-        (FAILED, "Failed"),
-    ]
-
-    # Notification type choices (extensible for future)
-    EMAIL = "email"
-    IN_APP = "in_app"
-    PUSH = "push"
-    SMS = "sms"
-
-    TYPE_CHOICES: ClassVar[list[tuple[str, str]]] = [
-        (EMAIL, "Email"),
-        (IN_APP, "In-App"),
-        (PUSH, "Push Notification"),
-        (SMS, "SMS"),
-    ]
-
     notification_id = models.UUIDField(
-        primary_key=True, default=uuid.uuid4, editable=False
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        help_text="Unique identifier for the notification",
     )
-    recipient = models.ForeignKey(
+    user = models.ForeignKey(
         "core.User",
         on_delete=models.CASCADE,
         related_name="notifications",
-        null=True,
-        blank=True,
-        db_column="recipient_id",
+        db_column="user_id",
         help_text="User receiving the notification",
     )
-    recipient_email = models.EmailField(
-        max_length=255, help_text="Email address for delivery (may differ from user)"
+    notification_category = models.CharField(
+        max_length=50,
+        help_text="Category determining template and notification_data structure",
     )
-    subject = models.CharField(max_length=255, help_text="Email subject line")
-    message = models.TextField(help_text="HTML or plain text message content")
-    notification_type = models.CharField(
-        max_length=20,
-        choices=TYPE_CHOICES,
-        default=EMAIL,
-        help_text="Type of notification",
+    is_read = models.BooleanField(
+        default=False,
+        help_text="Whether the notification has been read by the user",
     )
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default=PENDING,
-        help_text="Current delivery status",
+    is_deleted = models.BooleanField(
+        default=False,
+        help_text="Soft delete flag for user-initiated deletion",
     )
-    error_message = models.TextField(
-        default="", blank=True, help_text="Error details if delivery failed"
+    notification_data = models.JSONField(
+        help_text="Template parameters including templateVersion for rendering",
     )
-    retry_count = models.IntegerField(
-        default=0, help_text="Number of delivery attempts"
-    )
-    max_retries = models.IntegerField(default=3, help_text="Maximum retry attempts")
-
-    # Timestamps
     created_at = models.DateTimeField(
-        auto_now_add=True, help_text="When notification was created"
+        auto_now_add=True,
+        help_text="When the notification was created",
     )
-    queued_at = models.DateTimeField(
-        null=True, blank=True, help_text="When notification was queued"
-    )
-    sent_at = models.DateTimeField(
-        null=True, blank=True, help_text="When notification was successfully sent"
-    )
-    failed_at = models.DateTimeField(
-        null=True, blank=True, help_text="When notification failed permanently"
-    )
-
-    # Metadata
-    metadata = models.JSONField(
-        null=True,
-        blank=True,
-        help_text="Additional metadata (template vars, tracking info, etc.)",
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When the notification was last updated",
     )
 
     class Meta:
         """Django model metadata."""
 
         db_table = "notifications"
-        managed = False  # Schema is managed externally
+        managed = False
         ordering: ClassVar[list[str]] = ["-created_at"]
         indexes: ClassVar[list] = [
             models.Index(fields=["-created_at"]),
-            models.Index(fields=["status", "-created_at"]),
-            models.Index(fields=["recipient", "-created_at"]),
-            models.Index(fields=["recipient_email", "-created_at"]),
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["user", "is_read", "-created_at"]),
+            models.Index(fields=["user", "is_deleted", "-created_at"]),
         ]
 
     def __str__(self) -> str:
         """Return string representation of notification."""
-        return f"{self.notification_type} to {self.recipient_email} ({self.status})"
+        return f"{self.notification_category} for user {self.user_id}"
 
     def __repr__(self) -> str:
         """Return detailed representation of notification."""
         return (
             f"<Notification(id={self.notification_id}, "
-            f"type={self.notification_type}, "
-            f"status={self.status}, "
-            f"recipient={self.recipient_email})>"
+            f"category={self.notification_category}, "
+            f"user={self.user_id}, "
+            f"is_read={self.is_read})>"
         )
-
-    def mark_queued(self) -> None:
-        """Mark notification as queued for processing."""
-        self.status = self.QUEUED
-        self.queued_at = timezone.now()
-        self.save(update_fields=["status", "queued_at"])
-
-    def mark_sent(self) -> None:
-        """Mark notification as successfully sent."""
-        self.status = self.SENT
-        self.sent_at = timezone.now()
-        self.save(update_fields=["status", "sent_at"])
-
-    def mark_failed(self, error_msg: str) -> None:
-        """Mark notification as failed with error message."""
-        self.status = self.FAILED
-        self.failed_at = timezone.now()
-        self.error_message = error_msg
-        self.save(update_fields=["status", "failed_at", "error_message"])
-
-    def increment_retry(self) -> None:
-        """Increment retry count."""
-        self.retry_count += 1
-        self.save(update_fields=["retry_count"])
-
-    def can_retry(self) -> bool:
-        """Check if notification can be retried."""
-        return self.retry_count < self.max_retries and self.status != self.SENT
