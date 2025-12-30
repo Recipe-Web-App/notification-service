@@ -17,6 +17,7 @@ from core.schemas.notification import (
     MaintenanceRequest,
     MentionRequest,
     NewFollowerRequest,
+    NotificationDeleteRequest,
     NotificationDetail,
     NotificationStats,
     PasswordChangedRequest,
@@ -44,6 +45,7 @@ from core.services.social_notification_service import (
 from core.services.system_notification_service import (
     system_notification_service,
 )
+from core.services.user_notification_service import user_notification_service
 
 logger = structlog.get_logger(__name__)
 
@@ -2347,3 +2349,222 @@ class TemplateListView(APIView):
             )
             # Let DRF exception handler handle it
             raise
+
+
+class UserNotificationsView(APIView):
+    """View for listing and bulk deleting user notifications.
+
+    Handles:
+        GET /notifications - List user's notifications with pagination
+        DELETE /notifications - Bulk soft delete notifications
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """Get authenticated user's notifications.
+
+        Query Parameters:
+            limit: Page size (1-100, default 20)
+            offset: Items to skip (default 0)
+            countOnly: If true, return only count (default false)
+
+        Returns:
+            200: UserNotificationListResponse or UserNotificationCountResponse
+        """
+        logger.info(
+            "User notifications list request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Parse query params
+        count_only = request.query_params.get("countOnly", "false").lower() == "true"
+        try:
+            limit = min(int(request.query_params.get("limit", "20")), 100)
+            offset = int(request.query_params.get("offset", "0"))
+        except ValueError:
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid limit or offset parameter",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service
+        result = user_notification_service.get_user_notifications(
+            count_only=count_only,
+            limit=limit,
+            offset=offset,
+        )
+
+        logger.info(
+            "User notifications retrieved successfully",
+            user_id=request.user.user_id if request.user else None,
+            count_only=count_only,
+        )
+
+        return Response(result.model_dump(by_alias=True), status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        """Bulk delete notifications.
+
+        Request Body:
+            notificationIds: list[UUID] (1-100 items)
+
+        Returns:
+            200: All deleted successfully
+            206: Partial content (some deleted)
+            400: Validation error
+        """
+        logger.info(
+            "Bulk delete notifications request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        try:
+            delete_request = NotificationDeleteRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid bulk delete request",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        deleted_ids = user_notification_service.bulk_delete(
+            delete_request.notification_ids
+        )
+
+        # Convert UUIDs to strings for JSON response
+        deleted_ids_str = [str(uid) for uid in deleted_ids]
+
+        # Determine status code based on partial vs full deletion
+        if len(deleted_ids) == len(delete_request.notification_ids):
+            logger.info(
+                "All notifications deleted successfully",
+                deleted_count=len(deleted_ids),
+            )
+            return Response(
+                {
+                    "message": "Notifications deleted successfully",
+                    "deletedNotificationIds": deleted_ids_str,
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            logger.info(
+                "Some notifications deleted",
+                requested_count=len(delete_request.notification_ids),
+                deleted_count=len(deleted_ids),
+            )
+            return Response(
+                {
+                    "message": "Some notifications deleted successfully",
+                    "deletedNotificationIds": deleted_ids_str,
+                },
+                status=status.HTTP_206_PARTIAL_CONTENT,
+            )
+
+
+class NotificationMarkReadView(APIView):
+    """View for marking a single notification as read.
+
+    Handles:
+        PUT /notifications/{notificationId}/read
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def put(self, request, notification_id: str):
+        """Mark a notification as read.
+
+        Args:
+            request: HTTP request object.
+            notification_id: UUID of the notification.
+
+        Returns:
+            200: Success message
+            400: Invalid UUID format
+            404: Notification not found
+        """
+        logger.info(
+            "Mark notification as read request received",
+            user_id=request.user.user_id if request.user else None,
+            notification_id=notification_id,
+        )
+
+        try:
+            notification_uuid = UUID(notification_id)
+        except ValueError:
+            logger.warning(
+                "Invalid notification ID format",
+                notification_id=notification_id,
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid notification ID format",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_notification_service.mark_as_read(notification_uuid)
+
+        logger.info(
+            "Notification marked as read successfully",
+            notification_id=notification_id,
+        )
+
+        return Response(
+            {"message": "Notification marked as read successfully"},
+            status=status.HTTP_200_OK,
+        )
+
+
+class NotificationMarkAllReadView(APIView):
+    """View for marking all notifications as read.
+
+    Handles:
+        PUT /notifications/read-all
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def put(self, request):
+        """Mark all user's notifications as read.
+
+        Returns:
+            200: Success with list of affected IDs
+        """
+        logger.info(
+            "Mark all notifications as read request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        read_ids = user_notification_service.mark_all_as_read()
+
+        # Convert UUIDs to strings for JSON response
+        read_ids_str = [str(uid) for uid in read_ids]
+
+        logger.info(
+            "All notifications marked as read successfully",
+            marked_count=len(read_ids),
+        )
+
+        return Response(
+            {
+                "message": "All notifications marked as read successfully",
+                "readNotificationIds": read_ids_str,
+            },
+            status=status.HTTP_200_OK,
+        )

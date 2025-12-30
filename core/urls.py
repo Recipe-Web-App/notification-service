@@ -9,6 +9,8 @@ from .views import (
     MentionView,
     NewFollowerView,
     NotificationDetailView,
+    NotificationMarkAllReadView,
+    NotificationMarkReadView,
     NotificationRetryStatusView,
     NotificationStatsView,
     PasswordChangedView,
@@ -27,6 +29,7 @@ from .views import (
     TemplateListView,
     UserNotificationListView,
     UserNotificationsByIdView,
+    UserNotificationsView,
     WelcomeView,
 )
 
@@ -127,6 +130,22 @@ urlpatterns = [
         "notifications/retry-status",
         NotificationRetryStatusView.as_view(),
         name="notification-retry-status",
+    ),
+    # User notification management endpoints (new)
+    path(
+        "notifications",
+        UserNotificationsView.as_view(),
+        name="user-notifications-list",
+    ),
+    path(
+        "notifications/read-all",
+        NotificationMarkAllReadView.as_view(),
+        name="notifications-read-all",
+    ),
+    path(
+        "notifications/<str:notification_id>/read",
+        NotificationMarkReadView.as_view(),
+        name="notification-mark-read",
     ),
     # Notification management endpoints (specific routes before generic)
     path(
