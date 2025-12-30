@@ -2,8 +2,6 @@
 
 from uuid import UUID
 
-from django.template.loader import render_to_string
-
 import structlog
 from rest_framework.exceptions import PermissionDenied
 
@@ -16,6 +14,7 @@ from core.exceptions import (
     RecipeNotFoundError,
     UserNotFoundError,
 )
+from core.models import User
 from core.schemas.notification import (
     BatchNotificationResponse,
     MentionRequest,
@@ -42,17 +41,16 @@ class SocialNotificationService:
         """Send notifications when a user gains a new follower.
 
         Args:
-            request: New follower request with recipient_ids and follower_id
+            request: New follower request with recipient_ids and follower_id.
 
         Returns:
-            BatchNotificationResponse with created notifications
+            BatchNotificationResponse with created notifications.
 
         Raises:
-            UserNotFoundError: If follower or recipient user does not exist
+            UserNotFoundError: If follower or recipient user does not exist.
             PermissionDenied: If user lacks admin scope or relationship
-                does not exist
+                does not exist.
         """
-        # Get authenticated user from security context
         authenticated_user = require_current_user()
 
         logger.info(
@@ -62,7 +60,6 @@ class SocialNotificationService:
             user_id=authenticated_user.user_id,
         )
 
-        # Check for admin scope (required per OpenAPI spec)
         has_admin_scope = authenticated_user.has_scope("notification:admin")
 
         if not has_admin_scope:
@@ -72,7 +69,6 @@ class SocialNotificationService:
             )
             raise PermissionDenied(detail="Requires notification:admin scope")
 
-        # Fetch follower details
         try:
             follower = user_client.get_user(str(request.follower_id))
         except UserNotFoundError:
@@ -82,7 +78,6 @@ class SocialNotificationService:
             )
             raise
 
-        # Validate follower relationship exists for each recipient
         logger.info(
             "Validating follower relationships exist",
             follower_id=str(request.follower_id),
@@ -109,20 +104,16 @@ class SocialNotificationService:
                     )
                 )
 
-        # Fetch follower's recipe count
         recipe_count = recipe_management_service_client.get_user_recipe_count(
             str(request.follower_id)
         )
 
-        # Construct profile and recipes URLs
         profile_url = f"{FRONTEND_BASE_URL}/users/{follower.username}"
         recipes_url = f"{FRONTEND_BASE_URL}/users/{follower.username}/recipes"
 
-        # Create notifications for each recipient
         created_notifications = []
 
         for recipient_id in request.recipient_ids:
-            # Fetch recipient details
             try:
                 recipient = user_client.get_user(str(recipient_id))
             except UserNotFoundError:
@@ -132,33 +123,25 @@ class SocialNotificationService:
                 )
                 raise
 
-            # Prepare notification data
-            subject = f"{follower.full_name or follower.username} is now following you"
-            message = render_to_string(
-                "emails/new_follower.html",
-                {
-                    "recipient_name": (recipient.full_name or recipient.username),
+            user = User.objects.get(user_id=recipient_id)
+
+            notification, _ = notification_service.create_notification(
+                user=user,
+                notification_category="NEW_FOLLOWER",
+                notification_data={
+                    "template_version": "1.0",
+                    "recipient_name": recipient.full_name or recipient.username,
                     "follower_name": follower.full_name or follower.username,
+                    "actor_name": follower.full_name or follower.username,
                     "follower_username": follower.username,
                     "follower_bio": follower.bio if hasattr(follower, "bio") else None,
                     "recipe_count": recipe_count,
                     "profile_url": profile_url,
                     "recipes_url": recipes_url,
-                },
-            )
-
-            # Create notification with metadata
-            notification = notification_service.create_notification(
-                recipient_email=recipient.email,
-                subject=subject,
-                message=message,
-                notification_type="email",
-                metadata={
-                    "template_type": "new_follower",
                     "follower_id": str(request.follower_id),
                     "recipient_id": str(recipient_id),
                 },
-                auto_queue=True,  # Queue for async processing
+                recipient_email=recipient.email,
             )
 
             created_notifications.append(
@@ -192,18 +175,17 @@ class SocialNotificationService:
         """Send notifications when users are mentioned in comments.
 
         Args:
-            request: Mention request with recipient_ids and comment_id
+            request: Mention request with recipient_ids and comment_id.
 
         Returns:
-            BatchNotificationResponse with created notifications
+            BatchNotificationResponse with created notifications.
 
         Raises:
-            CommentNotFoundError: If comment does not exist
-            RecipeNotFoundError: If recipe associated with comment does not exist
-            UserNotFoundError: If commenter or recipient user does not exist
-            PermissionDenied: If user lacks admin scope
+            CommentNotFoundError: If comment does not exist.
+            RecipeNotFoundError: If recipe associated with comment does not exist.
+            UserNotFoundError: If commenter or recipient user does not exist.
+            PermissionDenied: If user lacks admin scope.
         """
-        # Get authenticated user from security context
         authenticated_user = require_current_user()
 
         logger.info(
@@ -213,7 +195,6 @@ class SocialNotificationService:
             user_id=authenticated_user.user_id,
         )
 
-        # Check for admin scope (required per user decision)
         has_admin_scope = authenticated_user.has_scope("notification:admin")
 
         if not has_admin_scope:
@@ -223,7 +204,6 @@ class SocialNotificationService:
             )
             raise PermissionDenied(detail="Requires notification:admin scope")
 
-        # Fetch comment details (includes recipe_id, user_id, comment_text)
         try:
             comment = recipe_management_service_client.get_comment(request.comment_id)
         except CommentNotFoundError:
@@ -233,7 +213,6 @@ class SocialNotificationService:
             )
             raise
 
-        # Fetch commenter (the user who wrote the comment with the mention)
         try:
             commenter = user_client.get_user(str(comment.user_id))
         except UserNotFoundError:
@@ -243,7 +222,6 @@ class SocialNotificationService:
             )
             raise
 
-        # Fetch recipe details
         try:
             recipe = recipe_management_service_client.get_recipe(comment.recipe_id)
         except RecipeNotFoundError:
@@ -253,23 +231,19 @@ class SocialNotificationService:
             )
             raise
 
-        # Truncate comment for preview (150 chars max)
         comment_preview = comment.comment_text
         if len(comment_preview) > 150:
             comment_preview = comment_preview[:150] + "..."
 
-        # Construct URLs
         recipe_url = f"{FRONTEND_BASE_URL}/recipes/{comment.recipe_id}"
         comment_url = (
             f"{FRONTEND_BASE_URL}/recipes/{comment.recipe_id}"
             f"#comment-{request.comment_id}"
         )
 
-        # Create notifications for each recipient
         created_notifications = []
 
         for recipient_id in request.recipient_ids:
-            # Fetch recipient details
             try:
                 recipient = user_client.get_user(str(recipient_id))
             except UserNotFoundError:
@@ -279,38 +253,27 @@ class SocialNotificationService:
                 )
                 raise
 
-            # Prepare notification data
-            subject = (
-                f"{commenter.full_name or commenter.username} "
-                "mentioned you in a comment"
-            )
-            message = render_to_string(
-                "emails/mention.html",
-                {
-                    "recipient_name": (recipient.full_name or recipient.username),
+            user = User.objects.get(user_id=recipient_id)
+
+            notification, _ = notification_service.create_notification(
+                user=user,
+                notification_category="MENTION",
+                notification_data={
+                    "template_version": "1.0",
+                    "recipient_name": recipient.full_name or recipient.username,
                     "commenter_name": commenter.full_name or commenter.username,
+                    "actor_name": commenter.full_name or commenter.username,
                     "commenter_username": commenter.username,
                     "comment_preview": comment_preview,
                     "recipe_name": recipe.title,
                     "recipe_url": recipe_url,
                     "comment_url": comment_url,
-                },
-            )
-
-            # Create notification with metadata
-            notification = notification_service.create_notification(
-                recipient_email=recipient.email,
-                subject=subject,
-                message=message,
-                notification_type="email",
-                metadata={
-                    "template_type": "mention",
                     "comment_id": str(request.comment_id),
                     "recipient_id": str(recipient_id),
                     "commenter_id": str(comment.user_id),
                     "recipe_id": str(comment.recipe_id),
                 },
-                auto_queue=True,  # Queue for async processing
+                recipient_email=recipient.email,
             )
 
             created_notifications.append(
@@ -346,12 +309,12 @@ class SocialNotificationService:
         """Resolve collector identity based on privacy rules.
 
         Args:
-            collector_id: ID of the collector
-            recipe_author_id: ID of the recipe author
-            authenticated_user: Authenticated user making the request
+            collector_id: ID of the collector.
+            recipe_author_id: ID of the recipe author.
+            authenticated_user: Authenticated user making the request.
 
         Returns:
-            Tuple of (collector_name, collector_username, is_anonymous)
+            Tuple of (collector_name, collector_username, is_anonymous).
         """
         has_admin_scope = authenticated_user.has_scope("notification:admin")
 
@@ -367,7 +330,6 @@ class SocialNotificationService:
                 False,
             )
 
-        # User scope: check if collector follows recipe author
         logger.info(
             "Validating follower relationship for user scope",
             user_id=authenticated_user.user_id,
@@ -411,15 +373,15 @@ class SocialNotificationService:
 
         Args:
             request: Recipe collected request with recipient_ids, recipe_id,
-                collector_id, and collection_id
+                collector_id, and collection_id.
 
         Returns:
-            BatchNotificationResponse with created notifications
+            BatchNotificationResponse with created notifications.
 
         Raises:
-            RecipeNotFoundError: If recipe does not exist
-            CollectionNotFoundError: If collection does not exist
-            UserNotFoundError: If collector or recipient does not exist
+            RecipeNotFoundError: If recipe does not exist.
+            CollectionNotFoundError: If collection does not exist.
+            UserNotFoundError: If collector or recipient does not exist.
         """
         authenticated_user = require_current_user()
 
@@ -449,7 +411,6 @@ class SocialNotificationService:
             )
             raise
 
-        # Resolve collector identity based on privacy rules
         collector_name, collector_username, is_anonymous = (
             self._resolve_collector_identity(
                 request.collector_id,
@@ -458,59 +419,39 @@ class SocialNotificationService:
             )
         )
 
-        # Construct URLs
         recipe_url = f"{FRONTEND_BASE_URL}/recipes/{request.recipe_id}"
         collection_url = f"{FRONTEND_BASE_URL}/collections/{request.collection_id}"
         collector_profile_url = None
         if not is_anonymous and collector_username:
             collector_profile_url = f"{FRONTEND_BASE_URL}/users/{collector_username}"
 
-        # Create notifications for each recipient
         created_notifications = []
 
         for recipient_id in request.recipient_ids:
-            # Fetch recipient details
             recipient = user_client.get_user(str(recipient_id))
+            user = User.objects.get(user_id=recipient_id)
 
-            # Prepare notification subject and message
-            if is_anonymous:
-                subject = f"Someone added your recipe to a collection: {recipe.title}"
-            else:
-                subject = (
-                    f"{collector_name} added your recipe to a collection: "
-                    f"{recipe.title}"
-                )
-
-            message = render_to_string(
-                "emails/recipe_collected.html",
-                {
-                    "recipient_name": (recipient.full_name or recipient.username),
+            notification, _ = notification_service.create_notification(
+                user=user,
+                notification_category="RECIPE_COLLECTED",
+                notification_data={
+                    "template_version": "1.0",
+                    "recipient_name": recipient.full_name or recipient.username,
                     "recipe_title": recipe.title,
                     "recipe_url": recipe_url,
                     "collection_name": collection.name,
                     "collection_description": collection.description,
                     "collection_url": collection_url,
                     "collector_name": collector_name,
+                    "actor_name": collector_name or "Someone",
                     "collector_profile_url": collector_profile_url,
                     "is_anonymous": is_anonymous,
-                },
-            )
-
-            # Create notification with metadata
-            notification = notification_service.create_notification(
-                recipient_email=recipient.email,
-                subject=subject,
-                message=message,
-                notification_type="email",
-                metadata={
-                    "template_type": "recipe_collected",
                     "recipe_id": str(request.recipe_id),
                     "collection_id": str(request.collection_id),
                     "collector_id": str(request.collector_id),
                     "recipient_id": str(recipient_id),
-                    "is_anonymous": is_anonymous,
                 },
-                auto_queue=True,  # Queue for async processing
+                recipient_email=recipient.email,
             )
 
             created_notifications.append(
@@ -539,5 +480,4 @@ class SocialNotificationService:
         )
 
 
-# Global service instance
 social_notification_service = SocialNotificationService()
