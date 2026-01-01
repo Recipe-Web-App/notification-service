@@ -4,11 +4,17 @@ import uuid
 from unittest.mock import patch
 
 from django.core.cache import cache
+from django.db.models.signals import post_save
 from django.test import TestCase, override_settings
 from django.test.signals import setting_changed
 
 from core.auth.oauth2 import OAuth2User
-from core.models import Notification
+from core.enums.notification import NotificationStatusEnum, NotificationType
+from core.models import Notification, NotificationStatus, User
+from core.signals.user_signals import send_welcome_email
+
+# Max retries constant (matches admin_service.MAX_RETRIES)
+MAX_RETRIES = 3
 
 
 @override_settings(
@@ -28,9 +34,20 @@ class RetryNotificationEndpointTestCase(TestCase):
         # Clear cache before each test
         cache.clear()
 
+        # Disconnect signals to avoid side effects
+        post_save.disconnect(send_welcome_email, sender=User)
+
         # Create test user IDs
         self.admin_id = uuid.uuid4()
         self.user_id = uuid.uuid4()
+
+        # Create test user
+        self.user = User.objects.create(
+            user_id=self.user_id,
+            email="test@example.com",
+            username="testuser",
+            password_hash="test_hash",
+        )
 
         # Create test notification ID
         self.notification_id = uuid.uuid4()
@@ -40,7 +57,45 @@ class RetryNotificationEndpointTestCase(TestCase):
 
     def tearDown(self):
         """Clean up after each test."""
+        # Clean up notifications and statuses
+        NotificationStatus.objects.all().delete()
+        Notification.objects.all().delete()
+        post_save.connect(send_welcome_email, sender=User)
         cache.clear()
+
+    def _create_notification_with_status(
+        self,
+        notification_id,
+        status,
+        retry_count=None,
+        error_message=None,
+    ):
+        """Helper to create a notification with EMAIL status.
+
+        Args:
+            notification_id: UUID for the notification
+            status: Status value for the NotificationStatus
+            retry_count: Retry count for the status
+            error_message: Error message for the status
+
+        Returns:
+            Tuple of (Notification, NotificationStatus)
+        """
+        notification = Notification.objects.create(
+            notification_id=notification_id,
+            user=self.user,
+            notification_category="TEST",
+            notification_data={"test": True},
+        )
+        email_status = NotificationStatus.objects.create(
+            notification=notification,
+            notification_type=NotificationType.EMAIL.value,
+            status=status,
+            retry_count=retry_count,
+            error_message=error_message,
+            recipient_email=self.user.email,
+        )
+        return notification, email_status
 
     @patch("core.services.notification_service.notification_service.queue_notification")
     @patch("core.auth.context.get_current_user")
@@ -64,17 +119,12 @@ class RetryNotificationEndpointTestCase(TestCase):
         mock_get_current_user.return_value = admin_user
         mock_require_current_user.return_value = admin_user
 
-        # Create a failed notification
-        notification = Notification.objects.create(
+        # Create a failed notification with status
+        _notification, email_status = self._create_notification_with_status(
             notification_id=self.notification_id,
-            recipient_email="test@example.com",
-            subject="Test Subject",
-            message="Test message",
-            notification_type=Notification.EMAIL,
-            status=Notification.FAILED,
-            error_message="Previous error",
+            status=NotificationStatusEnum.FAILED.value,
             retry_count=1,
-            max_retries=3,
+            error_message="Previous error",
         )
 
         # Execute
@@ -90,9 +140,9 @@ class RetryNotificationEndpointTestCase(TestCase):
         # Verify notification was queued
         mock_queue.assert_called_once_with(self.notification_id)
 
-        # Verify error message was cleared
-        notification.refresh_from_db()
-        self.assertEqual(notification.error_message, "")
+        # Verify error message was cleared on the status
+        email_status.refresh_from_db()
+        self.assertEqual(email_status.error_message, "")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
@@ -192,13 +242,9 @@ class RetryNotificationEndpointTestCase(TestCase):
         mock_require_current_user.return_value = admin_user
 
         # Create a SENT notification (cannot retry)
-        Notification.objects.create(
+        self._create_notification_with_status(
             notification_id=self.notification_id,
-            recipient_email="test@example.com",
-            subject="Test Subject",
-            message="Test message",
-            notification_type=Notification.EMAIL,
-            status=Notification.SENT,
+            status=NotificationStatusEnum.SENT.value,
         )
 
         # Execute
@@ -229,16 +275,11 @@ class RetryNotificationEndpointTestCase(TestCase):
         mock_require_current_user.return_value = admin_user
 
         # Create a failed notification with exhausted retries
-        Notification.objects.create(
+        self._create_notification_with_status(
             notification_id=self.notification_id,
-            recipient_email="test@example.com",
-            subject="Test Subject",
-            message="Test message",
-            notification_type=Notification.EMAIL,
-            status=Notification.FAILED,
+            status=NotificationStatusEnum.FAILED.value,
+            retry_count=MAX_RETRIES,  # At max retries
             error_message="Max retries exceeded",
-            retry_count=3,
-            max_retries=3,
         )
 
         # Execute
@@ -274,20 +315,15 @@ class RetryNotificationEndpointTestCase(TestCase):
         mock_require_current_user.return_value = admin_user
 
         # Create a failed notification with error message
-        notification = Notification.objects.create(
+        _notification, email_status = self._create_notification_with_status(
             notification_id=self.notification_id,
-            recipient_email="test@example.com",
-            subject="Test Subject",
-            message="Test message",
-            notification_type=Notification.EMAIL,
-            status=Notification.FAILED,
-            error_message="SMTP connection failed",
+            status=NotificationStatusEnum.FAILED.value,
             retry_count=0,
-            max_retries=3,
+            error_message="SMTP connection failed",
         )
 
         # Verify initial state
-        self.assertEqual(notification.error_message, "SMTP connection failed")
+        self.assertEqual(email_status.error_message, "SMTP connection failed")
 
         # Execute
         response = self.client.post(self.url)
@@ -295,9 +331,9 @@ class RetryNotificationEndpointTestCase(TestCase):
         # Assert response
         self.assertEqual(response.status_code, 202)
 
-        # Verify error message was cleared
-        notification.refresh_from_db()
-        self.assertEqual(notification.error_message, "")
+        # Verify error message was cleared on the status
+        email_status.refresh_from_db()
+        self.assertEqual(email_status.error_message, "")
 
         # Verify queue was called
         mock_queue.assert_called_once_with(self.notification_id)

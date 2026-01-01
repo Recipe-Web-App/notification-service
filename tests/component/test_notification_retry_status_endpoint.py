@@ -8,9 +8,14 @@ from django.db.models.signals import post_save
 from django.test import Client, TestCase
 
 from core.auth.oauth2 import OAuth2User
+from core.enums.notification import NotificationStatusEnum, NotificationType
 from core.models.notification import Notification
+from core.models.notification_status import NotificationStatus
 from core.models.user import User
 from core.signals.user_signals import send_welcome_email
+
+# Max retries constant (matches admin_service.MAX_RETRIES)
+MAX_RETRIES = 3
 
 
 class TestNotificationRetryStatusEndpoint(TestCase):
@@ -38,7 +43,40 @@ class TestNotificationRetryStatusEndpoint(TestCase):
 
     def tearDown(self):
         """Clean up after tests."""
+        # Clean up notifications and statuses
+        NotificationStatus.objects.all().delete()
+        Notification.objects.all().delete()
         post_save.connect(send_welcome_email, sender=User)
+
+    def _create_notification_with_status(
+        self,
+        status,
+        retry_count=None,
+        notification_category="TEST",
+    ):
+        """Helper to create a notification with EMAIL status.
+
+        Args:
+            status: Status value for the NotificationStatus
+            retry_count: Retry count for the status (None or int)
+            notification_category: Category for the notification
+
+        Returns:
+            Tuple of (Notification, NotificationStatus)
+        """
+        notification = Notification.objects.create(
+            user=self.user,
+            notification_category=notification_category,
+            notification_data={"test": True},
+        )
+        email_status = NotificationStatus.objects.create(
+            notification=notification,
+            notification_type=NotificationType.EMAIL.value,
+            status=status,
+            retry_count=retry_count,
+            recipient_email=self.user.email,
+        )
+        return notification, email_status
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.context.require_current_user")
@@ -47,40 +85,25 @@ class TestNotificationRetryStatusEndpoint(TestCase):
         self, mock_authenticate, mock_require_current_user, mock_get_current_user
     ):
         """Test GET with admin scope returns HTTP 200 with retry status."""
-        # Create test notifications
-        # 3 failed retryable
-        for i in range(3):
-            Notification.objects.create(
-                recipient=self.user,
-                recipient_email=self.user.email,
-                subject=f"Retryable {i}",
-                message="Message",
-                status=Notification.FAILED,
+        # Create test notifications with statuses
+        # 3 failed retryable (retry_count < MAX_RETRIES)
+        for _ in range(3):
+            self._create_notification_with_status(
+                status=NotificationStatusEnum.FAILED.value,
                 retry_count=1,
-                max_retries=3,
             )
 
-        # 2 failed exhausted
-        for i in range(2):
-            Notification.objects.create(
-                recipient=self.user,
-                recipient_email=self.user.email,
-                subject=f"Exhausted {i}",
-                message="Message",
-                status=Notification.FAILED,
-                retry_count=3,
-                max_retries=3,
+        # 2 failed exhausted (retry_count >= MAX_RETRIES)
+        for _ in range(2):
+            self._create_notification_with_status(
+                status=NotificationStatusEnum.FAILED.value,
+                retry_count=MAX_RETRIES,
             )
 
         # 1 queued
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Queued",
-            message="Message",
-            status=Notification.QUEUED,
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.QUEUED.value,
             retry_count=0,
-            max_retries=3,
         )
 
         admin_user = OAuth2User(
@@ -147,14 +170,9 @@ class TestNotificationRetryStatusEndpoint(TestCase):
     ):
         """Test GET with no queued notifications returns safe_to_retry=true."""
         # Create only failed notifications (no queued)
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Failed",
-            message="Message",
-            status=Notification.FAILED,
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.FAILED.value,
             retry_count=0,
-            max_retries=3,
         )
 
         admin_user = OAuth2User(
@@ -182,14 +200,9 @@ class TestNotificationRetryStatusEndpoint(TestCase):
     ):
         """Test GET with queued notifications returns safe_to_retry=false."""
         # Create queued notification
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Queued",
-            message="Message",
-            status=Notification.QUEUED,
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.QUEUED.value,
             retry_count=0,
-            max_retries=3,
         )
 
         admin_user = OAuth2User(
@@ -243,33 +256,18 @@ class TestNotificationRetryStatusEndpoint(TestCase):
     ):
         """Test GET only counts failed and queued notifications."""
         # Create notifications with different statuses
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Sent",
-            message="Message",
-            status=Notification.SENT,
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.SENT.value,
             retry_count=0,
-            max_retries=3,
         )
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Pending",
-            message="Message",
-            status=Notification.PENDING,
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.PENDING.value,
             retry_count=0,
-            max_retries=3,
         )
         # Only this one should count
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Failed",
-            message="Message",
-            status=Notification.FAILED,
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.FAILED.value,
             retry_count=0,
-            max_retries=3,
         )
 
         admin_user = OAuth2User(
@@ -299,14 +297,9 @@ class TestNotificationRetryStatusEndpoint(TestCase):
     ):
         """Test GET returns fresh data (not cached)."""
         # Create initial failed notification
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Failed 1",
-            message="Message",
-            status=Notification.FAILED,
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.FAILED.value,
             retry_count=0,
-            max_retries=3,
         )
 
         admin_user = OAuth2User(
@@ -324,14 +317,9 @@ class TestNotificationRetryStatusEndpoint(TestCase):
         self.assertEqual(data1["failed_retryable"], 1)
 
         # Add another failed notification
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Failed 2",
-            message="Message",
-            status=Notification.FAILED,
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.FAILED.value,
             retry_count=0,
-            max_retries=3,
         )
 
         # Second request should show updated count (not cached)
@@ -345,46 +333,25 @@ class TestNotificationRetryStatusEndpoint(TestCase):
     def test_get_correctly_distinguishes_retry_count_thresholds(
         self, mock_authenticate, mock_require_current_user, mock_get_current_user
     ):
-        """Test GET categorizes notifications by retry_count vs max_retries."""
-        # Create notifications with different max_retries values
-        # Retryable notifications have retry_count < max_retries
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Retryable 1",
-            message="Message",
-            status=Notification.FAILED,
-            retry_count=2,
-            max_retries=3,  # 2 < 3: retryable
+        """Test GET categorizes notifications by retry_count vs MAX_RETRIES."""
+        # Retryable notifications have retry_count < MAX_RETRIES
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.FAILED.value,
+            retry_count=2,  # 2 < 3: retryable
         )
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Retryable 2",
-            message="Message",
-            status=Notification.FAILED,
-            retry_count=4,
-            max_retries=5,  # 4 < 5: retryable
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.FAILED.value,
+            retry_count=1,  # 1 < 3: retryable
         )
 
-        # Exhausted notifications have retry_count >= max_retries
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Exhausted 1",
-            message="Message",
-            status=Notification.FAILED,
-            retry_count=3,
-            max_retries=3,  # 3 >= 3: exhausted
+        # Exhausted notifications have retry_count >= MAX_RETRIES
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.FAILED.value,
+            retry_count=3,  # 3 >= 3: exhausted
         )
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Exhausted 2",
-            message="Message",
-            status=Notification.FAILED,
-            retry_count=5,
-            max_retries=3,  # 5 >= 3: exhausted
+        self._create_notification_with_status(
+            status=NotificationStatusEnum.FAILED.value,
+            retry_count=5,  # 5 >= 3: exhausted
         )
 
         admin_user = OAuth2User(

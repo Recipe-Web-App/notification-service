@@ -42,10 +42,8 @@ class TestMaintenanceEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.User")
     @patch("core.services.system_notification_service.notification_service")
-    @patch("core.services.system_notification_service.render_to_string")
     def test_post_with_admin_scope_returns_202(
         self,
-        mock_render,
         mock_notification_service,
         mock_user_model,
         mock_authenticate,
@@ -66,11 +64,12 @@ class TestMaintenanceEndpoint(TestCase):
         mock_queryset.__iter__ = Mock(return_value=iter([self.mock_user]))
         mock_user_model.objects.filter.return_value = mock_queryset
 
-        mock_render.return_value = "<html>email content</html>"
-
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -204,10 +203,8 @@ class TestMaintenanceEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.User")
     @patch("core.services.system_notification_service.notification_service")
-    @patch("core.services.system_notification_service.render_to_string")
     def test_broadcast_to_all_users(
         self,
-        mock_render,
         mock_notification_service,
         mock_user_model,
         mock_authenticate,
@@ -240,11 +237,12 @@ class TestMaintenanceEndpoint(TestCase):
         mock_queryset.__iter__ = Mock(return_value=iter([user1, user2]))
         mock_user_model.objects.filter.return_value = mock_queryset
 
-        mock_render.return_value = "<html>email content</html>"
-
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -263,10 +261,8 @@ class TestMaintenanceEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.User")
     @patch("core.services.system_notification_service.notification_service")
-    @patch("core.services.system_notification_service.render_to_string")
     def test_admin_only_broadcast(
         self,
-        mock_render,
         mock_notification_service,
         mock_user_model,
         mock_authenticate,
@@ -291,11 +287,12 @@ class TestMaintenanceEndpoint(TestCase):
         mock_queryset.__iter__ = Mock(return_value=iter([self.mock_user]))
         mock_user_model.objects.filter.return_value = mock_queryset
 
-        mock_render.return_value = "<html>email content</html>"
-
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -313,10 +310,8 @@ class TestMaintenanceEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.User")
     @patch("core.services.system_notification_service.notification_service")
-    @patch("core.services.system_notification_service.render_to_string")
     def test_response_contains_notification_ids(
         self,
-        mock_render,
         mock_notification_service,
         mock_user_model,
         mock_authenticate,
@@ -337,11 +332,12 @@ class TestMaintenanceEndpoint(TestCase):
         mock_queryset.__iter__ = Mock(return_value=iter([self.mock_user]))
         mock_user_model.objects.filter.return_value = mock_queryset
 
-        mock_render.return_value = "<html>email content</html>"
-
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(

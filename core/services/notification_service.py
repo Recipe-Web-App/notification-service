@@ -335,11 +335,13 @@ class NotificationService:
     def get_notification_for_user(
         self,
         notification_id: UUID,
+        _include_message: bool = False,
     ) -> Notification:
         """Get a notification for the authenticated user with authorization check.
 
         Args:
             notification_id: Notification ID.
+            _include_message: Unused, kept for API compatibility.
 
         Returns:
             Notification instance.

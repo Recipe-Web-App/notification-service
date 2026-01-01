@@ -1,8 +1,12 @@
-"""Component tests for user notifications list endpoint.
+"""Component tests for user notification list endpoints with two-table schema.
 
-This module tests the /users/me/notifications endpoint through the
-full Django request/response cycle, including authentication, authorization,
-pagination, and filtering.
+Tests for:
+- /users/me/notifications - Get authenticated user's notifications
+- /users/{user_id}/notifications - Get user's notifications by ID (admin only)
+
+The database uses a normalized two-table design:
+- Notification: stores user-facing notification data
+- NotificationStatus: tracks delivery per channel (EMAIL, IN_APP, etc.)
 """
 
 from unittest.mock import patch
@@ -12,8 +16,12 @@ from django.db.models.signals import post_save
 from django.test import Client, TestCase
 
 from core.auth.oauth2 import OAuth2User
-from core.models.notification import Notification
-from core.models.user import User
+from core.enums.notification import (
+    NotificationCategory,
+    NotificationStatusEnum,
+    NotificationType,
+)
+from core.models import Notification, NotificationStatus, User
 from core.signals.user_signals import send_welcome_email
 
 
@@ -37,22 +45,33 @@ class TestUserNotificationsListEndpoint(TestCase):
             password_hash="test_hash",
         )
 
-        # Create REAL notifications in test database
+        # Create REAL notifications with new two-table schema
         self.notifications = []
         for i in range(3):
             notification = Notification.objects.create(
-                recipient=self.user,
+                user=self.user,
+                notification_category=NotificationCategory.RECIPE_LIKED.value,
+                notification_data={
+                    "template_version": "1.0",
+                    "actor_name": f"User{i}",
+                    "recipe_title": f"Recipe{i}",
+                },
+                is_read=False,
+            )
+            # Create NotificationStatus for delivery tracking
+            NotificationStatus.objects.create(
+                notification=notification,
+                notification_type=NotificationType.EMAIL.value,
+                status=NotificationStatusEnum.SENT.value,
                 recipient_email=self.user_email,
-                subject=f"Test Notification {i}",
-                message=f"Test message body {i}",
-                notification_type=Notification.EMAIL,
-                status=Notification.SENT,
-                metadata={"template_type": "recipe_published"},
             )
             self.notifications.append(notification)
 
     def tearDown(self):
         """Clean up after tests."""
+        NotificationStatus.objects.all().delete()
+        Notification.objects.all().delete()
+        User.objects.all().delete()
         post_save.connect(send_welcome_email, sender=User)
 
     @patch("core.auth.context.get_current_user")
@@ -155,14 +174,20 @@ class TestUserNotificationsListEndpoint(TestCase):
         mock_get_current_user,
     ):
         """Test GET with status filter applies the filter correctly."""
-        # Create one notification with "pending" status
-        Notification.objects.create(
-            recipient=self.user,
+        # Create notification with "pending" NotificationStatus
+        pending_notification = Notification.objects.create(
+            user=self.user,
+            notification_category=NotificationCategory.NEW_FOLLOWER.value,
+            notification_data={
+                "template_version": "1.0",
+                "actor_name": "PendingUser",
+            },
+        )
+        NotificationStatus.objects.create(
+            notification=pending_notification,
+            notification_type=NotificationType.EMAIL.value,
+            status=NotificationStatusEnum.PENDING.value,
             recipient_email=self.user_email,
-            subject="Pending Notification",
-            message="Pending message",
-            notification_type=Notification.EMAIL,
-            status=Notification.PENDING,
         )
 
         # Setup authentication
@@ -286,8 +311,39 @@ class TestUserNotificationsListEndpoint(TestCase):
         self.assertGreater(len(data["results"]), 0)
         # Message field should be included
         self.assertIn("message", data["results"][0])
-        # Results are ordered by created_at DESC, so most recent (index 2) comes first
-        self.assertEqual(data["results"][0]["message"], "Test message body 2")
+        # Message is rendered from template with notification_data
+        # Most recent notification has actor_name=User2, recipe_title=Recipe2
+        self.assertEqual(data["results"][0]["message"], "User2 liked Recipe2")
+
+    @patch("core.auth.context.get_current_user")
+    @patch("core.auth.context.require_current_user")
+    @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
+    def test_get_returns_rendered_title(
+        self,
+        mock_authenticate,
+        mock_require_current_user,
+        mock_get_current_user,
+    ):
+        """Test GET returns title rendered from notification_category."""
+        # Setup authentication
+        user = OAuth2User(
+            user_id=str(self.user_id),
+            client_id="test-client",
+            scopes=["notification:user"],
+        )
+        mock_authenticate.return_value = (user, None)
+        mock_get_current_user.return_value = user
+        mock_require_current_user.return_value = user
+
+        # Execute
+        response = self.client.get(self.url)
+
+        # Assertions
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertGreater(len(data["results"]), 0)
+        # Title is rendered from notification_category template
+        self.assertEqual(data["results"][0]["title"], "Someone liked your recipe")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.context.require_current_user")
@@ -301,13 +357,20 @@ class TestUserNotificationsListEndpoint(TestCase):
         """Test GET with pagination parameters."""
         # Create a large number of notifications for pagination testing
         for i in range(30):  # Total of 33 notifications (3 from setUp + 30 here)
-            Notification.objects.create(
-                recipient=self.user,
+            notification = Notification.objects.create(
+                user=self.user,
+                notification_category=NotificationCategory.RECIPE_COMMENTED.value,
+                notification_data={
+                    "template_version": "1.0",
+                    "actor_name": f"Commenter{i}",
+                    "recipe_title": f"Recipe{i}",
+                },
+            )
+            NotificationStatus.objects.create(
+                notification=notification,
+                notification_type=NotificationType.EMAIL.value,
+                status=NotificationStatusEnum.SENT.value,
                 recipient_email=self.user_email,
-                subject=f"Pagination Test {i}",
-                message=f"Message {i}",
-                notification_type=Notification.EMAIL,
-                status=Notification.SENT,
             )
 
         # Setup authentication
@@ -384,22 +447,32 @@ class TestUserNotificationsByIdEndpoint(TestCase):
             password_hash="test_hash",
         )
 
-        # Create REAL notifications in test database
+        # Create REAL notifications with new two-table schema
         self.notifications = []
         for i in range(3):
             notification = Notification.objects.create(
-                recipient=self.user,
+                user=self.user,
+                notification_category=NotificationCategory.RECIPE_LIKED.value,
+                notification_data={
+                    "template_version": "1.0",
+                    "actor_name": f"User{i}",
+                    "recipe_title": f"Recipe{i}",
+                },
+                is_read=False,
+            )
+            NotificationStatus.objects.create(
+                notification=notification,
+                notification_type=NotificationType.EMAIL.value,
+                status=NotificationStatusEnum.SENT.value,
                 recipient_email=self.user_email,
-                subject=f"Test Notification {i}",
-                message=f"Test message body {i}",
-                notification_type=Notification.EMAIL,
-                status=Notification.SENT,
-                metadata={"template_type": "recipe_published"},
             )
             self.notifications.append(notification)
 
     def tearDown(self):
         """Clean up after tests."""
+        NotificationStatus.objects.all().delete()
+        Notification.objects.all().delete()
+        User.objects.all().delete()
         post_save.connect(send_welcome_email, sender=User)
 
     @patch("core.auth.context.get_current_user")
@@ -529,14 +602,20 @@ class TestUserNotificationsByIdEndpoint(TestCase):
         mock_get_current_user,
     ):
         """Test GET with status filter applies the filter correctly."""
-        # Create one notification with "pending" status
-        Notification.objects.create(
-            recipient=self.user,
+        # Create notification with "pending" NotificationStatus
+        pending_notification = Notification.objects.create(
+            user=self.user,
+            notification_category=NotificationCategory.NEW_FOLLOWER.value,
+            notification_data={
+                "template_version": "1.0",
+                "actor_name": "PendingUser",
+            },
+        )
+        NotificationStatus.objects.create(
+            notification=pending_notification,
+            notification_type=NotificationType.EMAIL.value,
+            status=NotificationStatusEnum.PENDING.value,
             recipient_email=self.user_email,
-            subject="Pending Notification",
-            message="Pending message",
-            notification_type=Notification.EMAIL,
-            status=Notification.PENDING,
         )
 
         # Setup admin authentication
@@ -643,10 +722,10 @@ class TestUserNotificationsByIdEndpoint(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertGreater(len(data["results"]), 0)
-        # Message field should be included
+        # Message field should be included and rendered from template
         self.assertIn("message", data["results"][0])
-        # Results are ordered by created_at DESC, so most recent (index 2) comes first
-        self.assertEqual(data["results"][0]["message"], "Test message body 2")
+        # Most recent notification has actor_name=User2, recipe_title=Recipe2
+        self.assertEqual(data["results"][0]["message"], "User2 liked Recipe2")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.context.require_current_user")
@@ -660,13 +739,20 @@ class TestUserNotificationsByIdEndpoint(TestCase):
         """Test GET with pagination parameters."""
         # Create a large number of notifications for pagination testing
         for i in range(30):  # Total of 33 notifications (3 from setUp + 30 here)
-            Notification.objects.create(
-                recipient=self.user,
+            notification = Notification.objects.create(
+                user=self.user,
+                notification_category=NotificationCategory.RECIPE_COMMENTED.value,
+                notification_data={
+                    "template_version": "1.0",
+                    "actor_name": f"Commenter{i}",
+                    "recipe_title": f"Recipe{i}",
+                },
+            )
+            NotificationStatus.objects.create(
+                notification=notification,
+                notification_type=NotificationType.EMAIL.value,
+                status=NotificationStatusEnum.SENT.value,
                 recipient_email=self.user_email,
-                subject=f"Pagination Test {i}",
-                message=f"Message {i}",
-                notification_type=Notification.EMAIL,
-                status=Notification.SENT,
             )
 
         # Setup admin authentication

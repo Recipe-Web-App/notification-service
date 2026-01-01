@@ -61,8 +61,10 @@ class TestWelcomeEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     def test_post_with_service_to_service_auth_returns_202(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -82,9 +84,16 @@ class TestWelcomeEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient_1
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id_1
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -105,8 +114,10 @@ class TestWelcomeEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     def test_post_with_batch_recipients_returns_202(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -130,11 +141,14 @@ class TestWelcomeEndpoint(TestCase):
 
         mock_user_client.get_user.side_effect = get_user_side_effect
 
+        mock_db_user = Mock()
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification_1 = Mock(notification_id=uuid4())
         mock_notification_2 = Mock(notification_id=uuid4())
         mock_notification_service.create_notification.side_effect = [
-            mock_notification_1,
-            mock_notification_2,
+            (mock_notification_1, []),
+            (mock_notification_2, []),
         ]
 
         # Execute
@@ -294,8 +308,10 @@ class TestWelcomeEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     def test_response_contains_notification_ids(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -314,9 +330,16 @@ class TestWelcomeEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient_1
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id_1
+        mock_user_objects.get.return_value = mock_db_user
+
         notification_id = uuid4()
         mock_notification = Mock(notification_id=notification_id)
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -342,18 +365,20 @@ class TestWelcomeEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     @patch(
         "core.services.system_notification_service.FRONTEND_BASE_URL",
         "https://example.com",
     )
-    def test_welcome_message_uses_full_name(
+    def test_welcome_notification_uses_full_name(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
         mock_get_current_user,
     ):
-        """Test that welcome message uses full name when available."""
+        """Test that welcome notification uses full name when available."""
         # Setup service authentication
         service_user = OAuth2User(
             user_id="user-management-service",
@@ -366,9 +391,16 @@ class TestWelcomeEndpoint(TestCase):
         # Setup service mocks with user that has full_name
         mock_user_client.get_user.return_value = self.mock_recipient_1
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id_1
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -384,26 +416,29 @@ class TestWelcomeEndpoint(TestCase):
         mock_notification_service.create_notification.assert_called_once()
         call_kwargs = mock_notification_service.create_notification.call_args[1]
 
-        # Check that the message contains the full name
-        message = call_kwargs["message"]
-        self.assertIn("Test User One", message)
+        # Check that notification_data contains the full name
+        notification_data = call_kwargs["notification_data"]
+        self.assertEqual(notification_data["username"], "Test User One")
+        self.assertEqual(notification_data["recipient_name"], "Test User One")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     @patch(
         "core.services.system_notification_service.FRONTEND_BASE_URL",
         "https://example.com",
     )
-    def test_welcome_message_falls_back_to_username(
+    def test_welcome_notification_falls_back_to_username(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
         mock_get_current_user,
     ):
-        """Test that welcome message falls back to username when full_name is None."""
+        """Test welcome notification falls back to username when full_name is None."""
         # Setup service authentication
         service_user = OAuth2User(
             user_id="user-management-service",
@@ -416,9 +451,16 @@ class TestWelcomeEndpoint(TestCase):
         # Setup service mocks with user that has no full_name
         mock_user_client.get_user.return_value = self.mock_recipient_2
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id_2
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -434,22 +476,25 @@ class TestWelcomeEndpoint(TestCase):
         mock_notification_service.create_notification.assert_called_once()
         call_kwargs = mock_notification_service.create_notification.call_args[1]
 
-        # Check that the message contains the username
-        message = call_kwargs["message"]
-        self.assertIn("testuser2", message)
+        # Check that notification_data contains the username (fallback)
+        notification_data = call_kwargs["notification_data"]
+        self.assertEqual(notification_data["username"], "testuser2")
+        self.assertEqual(notification_data["recipient_name"], "testuser2")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
-    def test_notification_includes_metadata(
+    @patch("core.services.system_notification_service.User.objects")
+    def test_notification_includes_notification_data(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
         mock_get_current_user,
     ):
-        """Test that notification includes correct metadata."""
+        """Test that notification includes correct notification_data."""
         # Setup service authentication
         service_user = OAuth2User(
             user_id="user-management-service",
@@ -462,9 +507,16 @@ class TestWelcomeEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient_1
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id_1
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -476,26 +528,29 @@ class TestWelcomeEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 202)
 
-        # Verify metadata
+        # Verify notification_data
         mock_notification_service.create_notification.assert_called_once()
         call_kwargs = mock_notification_service.create_notification.call_args[1]
 
-        metadata = call_kwargs["metadata"]
-        self.assertEqual(metadata["template_type"], "welcome")
-        self.assertEqual(metadata["recipient_id"], str(self.recipient_id_1))
+        notification_data = call_kwargs["notification_data"]
+        self.assertEqual(notification_data["template_version"], "1.0")
+        self.assertEqual(notification_data["recipient_id"], str(self.recipient_id_1))
+        self.assertIn("app_url", notification_data)
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
-    def test_notification_auto_queued(
+    @patch("core.services.system_notification_service.User.objects")
+    def test_notification_uses_correct_category(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
         mock_get_current_user,
     ):
-        """Test that notification is auto-queued for async processing."""
+        """Test that notification uses correct category."""
         # Setup service authentication
         service_user = OAuth2User(
             user_id="user-management-service",
@@ -508,9 +563,16 @@ class TestWelcomeEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient_1
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id_1
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -522,23 +584,25 @@ class TestWelcomeEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 202)
 
-        # Verify auto_queue was set to True
+        # Verify category
         mock_notification_service.create_notification.assert_called_once()
         call_kwargs = mock_notification_service.create_notification.call_args[1]
-        self.assertTrue(call_kwargs["auto_queue"])
+        self.assertEqual(call_kwargs["notification_category"], "WELCOME")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
-    def test_notification_has_correct_subject(
+    @patch("core.services.system_notification_service.User.objects")
+    def test_notification_includes_recipient_email(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
         mock_get_current_user,
     ):
-        """Test that notification has correct subject line."""
+        """Test that notification includes recipient email."""
         # Setup service authentication
         service_user = OAuth2User(
             user_id="user-management-service",
@@ -551,9 +615,16 @@ class TestWelcomeEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient_1
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id_1
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -565,7 +636,7 @@ class TestWelcomeEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 202)
 
-        # Verify subject
+        # Verify recipient_email
         mock_notification_service.create_notification.assert_called_once()
         call_kwargs = mock_notification_service.create_notification.call_args[1]
-        self.assertEqual(call_kwargs["subject"], "Welcome to Recipe Web App!")
+        self.assertEqual(call_kwargs["recipient_email"], "testuser1@example.com")
