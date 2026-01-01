@@ -1,525 +1,487 @@
-"""Tests for RecipeNotificationService share-recipe functionality."""
+"""Tests for RecipeNotificationService share-recipe with two-table schema."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
-from django.test import TestCase
+from django.db.models.signals import post_save
+
+import pytest
 
 from core.auth.oauth2 import OAuth2User
 from core.exceptions import RecipeNotFoundError, UserNotFoundError
+from core.models.user import User
 from core.schemas.notification import ShareRecipeRequest
 from core.schemas.recipe import RecipeDto
 from core.schemas.user import UserSearchResult
 from core.services.recipe_notification_service import (
-    RecipeNotificationService,
+    recipe_notification_service,
 )
+from core.signals.user_signals import send_welcome_email
 
 
-class TestShareRecipeNotifications(TestCase):
-    """Test suite for share-recipe notifications."""
+@pytest.fixture(autouse=True)
+def disconnect_signals():
+    """Disconnect signals for all tests."""
+    post_save.disconnect(send_welcome_email, sender=User)
+    yield
+    post_save.connect(send_welcome_email, sender=User)
 
-    def setUp(self):
-        """Set up test fixtures."""
-        self.service = RecipeNotificationService()
 
-        self.admin_user = OAuth2User(
-            user_id=str(uuid4()),
-            client_id="test-client",
-            scopes=["notification:admin"],
+@pytest.fixture
+def mock_admin_user():
+    """Create a mock admin user."""
+    return OAuth2User(
+        user_id=str(uuid4()),
+        client_id="test-client",
+        scopes=["notification:admin"],
+    )
+
+
+@pytest.fixture
+def mock_regular_user():
+    """Create a mock regular user."""
+    return OAuth2User(
+        user_id=str(uuid4()),
+        client_id="test-client",
+        scopes=["notification:user"],
+    )
+
+
+@pytest.fixture
+def mock_recipe():
+    """Create a mock recipe."""
+    return RecipeDto(
+        recipe_id=123,
+        user_id=uuid4(),
+        title="Test Recipe",
+        servings=Decimal("4"),
+        created_at="2025-10-29T12:00:00Z",
+    )
+
+
+@pytest.fixture
+def mock_user_dto():
+    """Create a mock user DTO for downstream client."""
+    return UserSearchResult(
+        user_id=uuid4(),
+        username="testuser",
+        email="test@example.com",
+        full_name="Test User",
+        is_active=True,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+
+@pytest.fixture
+def share_recipe_request():
+    """Create a share recipe request."""
+    return ShareRecipeRequest(
+        recipient_ids=[uuid4(), uuid4()],
+        recipe_id=123,
+        sharer_id=uuid4(),
+        share_message="Check out this amazing recipe!",
+    )
+
+
+@pytest.mark.django_db
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+@patch("core.services.recipe_notification_service.user_client")
+@patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_notifications_admin_scope_reveals_sharer(
+    mock_user_objects,
+    mock_notification_service,
+    mock_user_client,
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_admin_user,
+    mock_recipe,
+    mock_user_dto,
+    share_recipe_request,
+):
+    """Test admin scope always reveals sharer identity."""
+    mock_require_current_user.return_value = mock_admin_user
+    mock_recipe_client.get_recipe.return_value = mock_recipe
+    mock_media_client.get_recipe_media_ids.return_value = []
+    mock_user_client.get_user.return_value = mock_user_dto
+
+    mock_db_user = Mock()
+    mock_user_objects.get.return_value = mock_db_user
+
+    mock_notification = Mock()
+    mock_notification.notification_id = uuid4()
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
+
+    response = recipe_notification_service.share_recipe_with_users(
+        request=share_recipe_request,
+    )
+
+    assert response.queued_count == 3
+    assert len(response.notifications) == 3
+    assert response.message == "Notifications queued successfully"
+
+    # Verify recipe was fetched
+    mock_recipe_client.get_recipe.assert_called_once_with(
+        int(share_recipe_request.recipe_id)
+    )
+
+    # Verify follower validation was NOT called (admin bypass)
+    mock_user_client.validate_follower_relationship.assert_not_called()
+
+    # Verify sharer details were fetched (identity revealed)
+    sharer_fetch_calls = [
+        call
+        for call in mock_user_client.get_user.call_args_list
+        if call[0][0] == str(share_recipe_request.sharer_id)
+    ]
+    assert len(sharer_fetch_calls) == 1
+
+    # Verify notification service called for each recipient
+    assert mock_notification_service.create_notification.call_count == 3
+
+
+@pytest.mark.django_db
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+@patch("core.services.recipe_notification_service.user_client")
+@patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_notifications_user_scope_follower_reveals_sharer(
+    mock_user_objects,
+    mock_notification_service,
+    mock_user_client,
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_regular_user,
+    mock_recipe,
+    mock_user_dto,
+    share_recipe_request,
+):
+    """Test user scope with follower reveals sharer identity."""
+    mock_require_current_user.return_value = mock_regular_user
+    mock_recipe_client.get_recipe.return_value = mock_recipe
+    mock_media_client.get_recipe_media_ids.return_value = []
+    mock_user_client.get_user.return_value = mock_user_dto
+    mock_user_client.validate_follower_relationship.return_value = True
+
+    mock_db_user = Mock()
+    mock_user_objects.get.return_value = mock_db_user
+
+    mock_notification = Mock()
+    mock_notification.notification_id = uuid4()
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
+
+    response = recipe_notification_service.share_recipe_with_users(
+        request=share_recipe_request,
+    )
+
+    assert response.queued_count == 3
+    assert len(response.notifications) == 3
+
+    # Verify follower validation was called
+    assert mock_user_client.validate_follower_relationship.call_count == 1
+
+    # Verify sharer details were fetched (identity revealed)
+    sharer_fetch_calls = [
+        call
+        for call in mock_user_client.get_user.call_args_list
+        if call[0][0] == str(share_recipe_request.sharer_id)
+    ]
+    assert len(sharer_fetch_calls) == 1
+
+
+@pytest.mark.django_db
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+@patch("core.services.recipe_notification_service.user_client")
+@patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_notifications_user_scope_non_follower_anonymous(
+    mock_user_objects,
+    mock_notification_service,
+    mock_user_client,
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_regular_user,
+    mock_recipe,
+    mock_user_dto,
+    share_recipe_request,
+):
+    """Test user scope with non-follower sends anonymous notification."""
+    mock_require_current_user.return_value = mock_regular_user
+    mock_recipe_client.get_recipe.return_value = mock_recipe
+    mock_media_client.get_recipe_media_ids.return_value = []
+    mock_user_client.get_user.return_value = mock_user_dto
+    mock_user_client.validate_follower_relationship.return_value = False
+
+    mock_db_user = Mock()
+    mock_user_objects.get.return_value = mock_db_user
+
+    mock_notification = Mock()
+    mock_notification.notification_id = uuid4()
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
+
+    response = recipe_notification_service.share_recipe_with_users(
+        request=share_recipe_request,
+    )
+
+    assert response.queued_count == 3
+    assert len(response.notifications) == 3
+
+    # Verify follower validation was called
+    assert mock_user_client.validate_follower_relationship.call_count == 1
+
+    # Verify sharer details WERE fetched (for recipients, who always see identity)
+    sharer_fetch_calls = [
+        call
+        for call in mock_user_client.get_user.call_args_list
+        if call[0][0] == str(share_recipe_request.sharer_id)
+    ]
+    assert len(sharer_fetch_calls) == 1
+
+
+@pytest.mark.django_db
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+@patch("core.services.recipe_notification_service.user_client")
+@patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_notifications_without_sharer_id_anonymous(
+    mock_user_objects,
+    mock_notification_service,
+    mock_user_client,
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_admin_user,
+    mock_recipe,
+    mock_user_dto,
+):
+    """Test notification without sharer_id is anonymous."""
+    mock_require_current_user.return_value = mock_admin_user
+
+    request = ShareRecipeRequest(
+        recipient_ids=[uuid4()],
+        recipe_id=123,
+        sharer_id=None,
+        share_message="Check this out!",
+    )
+
+    mock_recipe_client.get_recipe.return_value = mock_recipe
+    mock_media_client.get_recipe_media_ids.return_value = []
+    mock_user_client.get_user.return_value = mock_user_dto
+
+    mock_db_user = Mock()
+    mock_user_objects.get.return_value = mock_db_user
+
+    mock_notification = Mock()
+    mock_notification.notification_id = uuid4()
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
+
+    response = recipe_notification_service.share_recipe_with_users(
+        request=request,
+    )
+
+    assert response.queued_count == 2
+
+    # Verify follower validation was NOT called (no sharer_id)
+    mock_user_client.validate_follower_relationship.assert_not_called()
+
+    # Verify notification_data includes is_anonymous=True
+    call_args = mock_notification_service.create_notification.call_args
+    notification_data = call_args[1]["notification_data"]
+    assert notification_data["is_anonymous"] is True
+
+
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+def test_send_notifications_recipe_not_found(
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_regular_user,
+    share_recipe_request,
+):
+    """Test recipe not found raises RecipeNotFoundError."""
+    mock_require_current_user.return_value = mock_regular_user
+    mock_recipe_client.get_recipe.side_effect = RecipeNotFoundError(
+        recipe_id=int(share_recipe_request.recipe_id)
+    )
+
+    with pytest.raises(RecipeNotFoundError):
+        recipe_notification_service.share_recipe_with_users(
+            request=share_recipe_request,
         )
 
-        self.regular_user = OAuth2User(
-            user_id=str(uuid4()),
-            client_id="test-client",
-            scopes=["notification:user"],
+
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+@patch("core.services.recipe_notification_service.user_client")
+def test_send_notifications_sharer_not_found(
+    mock_user_client,
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_admin_user,
+    mock_recipe,
+    share_recipe_request,
+):
+    """Test sharer not found raises UserNotFoundError."""
+    mock_require_current_user.return_value = mock_admin_user
+    mock_recipe_client.get_recipe.return_value = mock_recipe
+    mock_media_client.get_recipe_media_ids.return_value = []
+    mock_user_client.get_user.side_effect = UserNotFoundError(
+        user_id=str(share_recipe_request.sharer_id)
+    )
+
+    with pytest.raises(UserNotFoundError):
+        recipe_notification_service.share_recipe_with_users(
+            request=share_recipe_request,
         )
 
-        self.share_recipe_request = ShareRecipeRequest(
-            recipient_ids=[uuid4(), uuid4()],
-            recipe_id=123,
-            sharer_id=uuid4(),
-            share_message="Check out this amazing recipe!",
-        )
 
-        self.mock_recipe = RecipeDto(
-            recipe_id=123,
-            user_id=uuid4(),
-            title="Test Recipe",
-            servings=Decimal("4"),
-            created_at="2025-10-29T12:00:00Z",
-        )
+@pytest.mark.django_db
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+@patch("core.services.recipe_notification_service.user_client")
+@patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_notifications_includes_notification_data(
+    mock_user_objects,
+    mock_notification_service,
+    mock_user_client,
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_admin_user,
+    mock_recipe,
+    mock_user_dto,
+    share_recipe_request,
+):
+    """Test notifications include correct notification_data."""
+    mock_require_current_user.return_value = mock_admin_user
+    mock_recipe_client.get_recipe.return_value = mock_recipe
+    mock_media_client.get_recipe_media_ids.return_value = []
+    mock_user_client.get_user.return_value = mock_user_dto
 
-        self.mock_user = UserSearchResult(
-            user_id=uuid4(),
-            username="testuser",
-            email="test@example.com",
-            full_name="Test User",
-            is_active=True,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-        )
+    mock_db_user = Mock()
+    mock_user_objects.get.return_value = mock_db_user
 
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    def test_send_notifications_admin_scope_reveals_sharer(
-        self,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test admin scope always reveals sharer identity."""
-        mock_require_current_user.return_value = self.admin_user
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
+    mock_notification = Mock()
+    mock_notification.notification_id = uuid4()
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
 
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+    recipe_notification_service.share_recipe_with_users(
+        request=share_recipe_request,
+    )
 
-        # Execute
-        response = self.service.share_recipe_with_users(
-            request=self.share_recipe_request,
-        )
+    # Verify notification_data includes expected fields
+    call_args = mock_notification_service.create_notification.call_args
+    notification_data = call_args[1]["notification_data"]
 
-        # Assertions
-        self.assertEqual(response.queued_count, 3)
-        self.assertEqual(len(response.notifications), 3)
-        self.assertEqual(response.message, "Notifications queued successfully")
+    assert notification_data["recipe_id"] == str(share_recipe_request.recipe_id)
+    assert "template_version" in notification_data
+    assert "is_anonymous" in notification_data
 
-        # Verify recipe was fetched
-        mock_recipe_client.get_recipe.assert_called_once_with(
-            int(self.share_recipe_request.recipe_id)
-        )
 
-        # Verify follower validation was NOT called (admin bypass)
-        mock_user_client.validate_follower_relationship.assert_not_called()
+@pytest.mark.django_db
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+@patch("core.services.recipe_notification_service.user_client")
+@patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_notifications_multiple_recipients(
+    mock_user_objects,
+    mock_notification_service,
+    mock_user_client,
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_admin_user,
+    mock_recipe,
+    mock_user_dto,
+):
+    """Test handling multiple recipients correctly."""
+    mock_require_current_user.return_value = mock_admin_user
 
-        # Verify sharer details were fetched (identity revealed)
-        sharer_fetch_calls = [
-            call
-            for call in mock_user_client.get_user.call_args_list
-            if call[0][0] == str(self.share_recipe_request.sharer_id)
-        ]
-        self.assertEqual(len(sharer_fetch_calls), 1)
+    request = ShareRecipeRequest(
+        recipient_ids=[uuid4(), uuid4(), uuid4()],
+        recipe_id=123,
+        sharer_id=uuid4(),
+        share_message="Amazing recipe!",
+    )
 
-        # Verify notification service called for each recipient
-        self.assertEqual(mock_notification_service.create_notification.call_count, 3)
+    mock_recipe_client.get_recipe.return_value = mock_recipe
+    mock_media_client.get_recipe_media_ids.return_value = []
+    mock_user_client.get_user.return_value = mock_user_dto
 
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    def test_send_notifications_user_scope_follower_reveals_sharer(
-        self,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test user scope with follower reveals sharer identity."""
-        mock_require_current_user.return_value = self.regular_user
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
-        # Sharer follows author - identity should be revealed
-        mock_user_client.validate_follower_relationship.return_value = True
+    mock_db_user = Mock()
+    mock_user_objects.get.return_value = mock_db_user
 
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+    mock_notification = Mock()
+    mock_notification.notification_id = uuid4()
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
 
-        # Execute
-        response = self.service.share_recipe_with_users(
-            request=self.share_recipe_request,
-        )
+    response = recipe_notification_service.share_recipe_with_users(
+        request=request,
+    )
 
-        # Assertions
-        self.assertEqual(response.queued_count, 3)
-        self.assertEqual(len(response.notifications), 3)
+    # 3 recipients + 1 author
+    assert response.queued_count == 4
+    assert len(response.notifications) == 4
+    assert mock_notification_service.create_notification.call_count == 4
 
-        # Verify follower validation was called
-        self.assertEqual(mock_user_client.validate_follower_relationship.call_count, 1)
 
-        # Verify sharer details were fetched (identity revealed)
-        sharer_fetch_calls = [
-            call
-            for call in mock_user_client.get_user.call_args_list
-            if call[0][0] == str(self.share_recipe_request.sharer_id)
-        ]
-        self.assertEqual(len(sharer_fetch_calls), 1)
+@pytest.mark.django_db
+@patch("core.services.recipe_notification_service.require_current_user")
+@patch("core.services.recipe_notification_service.media_management_service_client")
+@patch("core.services.recipe_notification_service.recipe_management_service_client")
+@patch("core.services.recipe_notification_service.user_client")
+@patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_notifications_uses_correct_category(
+    mock_user_objects,
+    mock_notification_service,
+    mock_user_client,
+    mock_recipe_client,
+    mock_media_client,
+    mock_require_current_user,
+    mock_admin_user,
+    mock_recipe,
+    mock_user_dto,
+    share_recipe_request,
+):
+    """Test notification uses correct category."""
+    mock_require_current_user.return_value = mock_admin_user
+    mock_recipe_client.get_recipe.return_value = mock_recipe
+    mock_media_client.get_recipe_media_ids.return_value = []
+    mock_user_client.get_user.return_value = mock_user_dto
 
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    def test_send_notifications_user_scope_non_follower_anonymous(
-        self,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test user scope with non-follower sends anonymous notification."""
-        mock_require_current_user.return_value = self.regular_user
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
-        # Sharer does NOT follow author - should be anonymous
-        mock_user_client.validate_follower_relationship.return_value = False
+    mock_db_user = Mock()
+    mock_user_objects.get.return_value = mock_db_user
 
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+    mock_notification = Mock()
+    mock_notification.notification_id = uuid4()
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
 
-        # Execute
-        response = self.service.share_recipe_with_users(
-            request=self.share_recipe_request,
-        )
+    recipe_notification_service.share_recipe_with_users(
+        request=share_recipe_request,
+    )
 
-        # Assertions - should still succeed
-        self.assertEqual(response.queued_count, 3)
-        self.assertEqual(len(response.notifications), 3)
-
-        # Verify follower validation was called
-        self.assertEqual(mock_user_client.validate_follower_relationship.call_count, 1)
-
-        # Verify sharer details WERE fetched (for recipients, who always see identity)
-        # But author notification should be anonymous
-        sharer_fetch_calls = [
-            call
-            for call in mock_user_client.get_user.call_args_list
-            if call[0][0] == str(self.share_recipe_request.sharer_id)
-        ]
-        self.assertEqual(len(sharer_fetch_calls), 1)
-
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    def test_send_notifications_without_sharer_id_anonymous(
-        self,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test notification without sharer_id is anonymous."""
-        mock_require_current_user.return_value = self.admin_user
-
-        # Create request without sharer_id
-        request = ShareRecipeRequest(
-            recipient_ids=[uuid4()],
-            recipe_id=123,
-            sharer_id=None,
-            share_message="Check this out!",
-        )
-
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
-
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
-
-        # Execute
-        response = self.service.share_recipe_with_users(
-            request=request,
-        )
-
-        # Assertions
-        self.assertEqual(response.queued_count, 2)
-
-        # Verify follower validation was NOT called (no sharer_id)
-        mock_user_client.validate_follower_relationship.assert_not_called()
-
-        # Verify metadata includes is_anonymous=True and sharer_id=None
-        call_args = mock_notification_service.create_notification.call_args
-        metadata = call_args[1]["metadata"]
-        self.assertIs(metadata["is_anonymous"], True)
-        self.assertIsNone(metadata["sharer_id"])
-
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    def test_send_notifications_recipe_not_found(
-        self,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test recipe not found raises RecipeNotFoundError."""
-        mock_require_current_user.return_value = self.regular_user
-        # Setup mock to raise RecipeNotFoundError
-        mock_recipe_client.get_recipe.side_effect = RecipeNotFoundError(
-            recipe_id=int(self.share_recipe_request.recipe_id)
-        )
-
-        # Execute and assert
-        with self.assertRaises(RecipeNotFoundError):
-            self.service.share_recipe_with_users(
-                request=self.share_recipe_request,
-            )
-
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    def test_send_notifications_sharer_not_found(
-        self,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test sharer not found raises UserNotFoundError."""
-        mock_require_current_user.return_value = self.admin_user
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        # First call for sharer raises error
-        mock_user_client.get_user.side_effect = UserNotFoundError(
-            user_id=str(self.share_recipe_request.sharer_id)
-        )
-
-        # Execute and assert
-        with self.assertRaises(UserNotFoundError):
-            self.service.share_recipe_with_users(
-                request=self.share_recipe_request,
-            )
-
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    @patch("core.services.recipe_notification_service.render_to_string")
-    def test_send_notifications_renders_email_template_with_sharer(
-        self,
-        mock_render,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test email template rendered with sharer identity."""
-        mock_require_current_user.return_value = self.admin_user
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
-        mock_render.return_value = "<html>Test email</html>"
-
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
-
-        # Execute
-        self.service.share_recipe_with_users(
-            request=self.share_recipe_request,
-        )
-
-        # Verify template was rendered (2 recipients + 1 author)
-        self.assertEqual(mock_render.call_count, 3)
-        first_call = mock_render.call_args_list[0]
-        self.assertEqual(first_call[0][0], "emails/recipe_shared.html")
-        context = first_call[0][1]
-        self.assertIn("recipient_name", context)
-        self.assertIn("recipe_title", context)
-        self.assertIn("recipe_url", context)
-        self.assertIn("sharer_name", context)
-        self.assertIn("share_message", context)
-        self.assertIn("is_anonymous", context)
-        # Admin scope should reveal identity
-        self.assertFalse(context["is_anonymous"])
-
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    @patch("core.services.recipe_notification_service.render_to_string")
-    def test_send_notifications_renders_email_template_anonymous(
-        self,
-        mock_render,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test email template rendered for anonymous share."""
-        mock_require_current_user.return_value = self.regular_user
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
-        # Sharer not a follower - anonymous
-        mock_user_client.validate_follower_relationship.return_value = False
-        mock_render.return_value = "<html>Test email</html>"
-
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
-
-        # Execute
-        self.service.share_recipe_with_users(
-            request=self.share_recipe_request,
-        )
-
-        # Verify template was rendered (2 recipients + 1 author)
-        self.assertEqual(mock_render.call_count, 3)
-        first_call = mock_render.call_args_list[0]
-        context = first_call[0][1]
-        # Anonymous share - recipient notification should not be anonymous
-        self.assertFalse(context["is_anonymous"])
-        self.assertIsNotNone(context["sharer_name"])
-
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    def test_send_notifications_includes_metadata(
-        self,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test notifications include correct metadata."""
-        mock_require_current_user.return_value = self.admin_user
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
-
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
-
-        # Execute
-        self.service.share_recipe_with_users(
-            request=self.share_recipe_request,
-        )
-
-        # Verify recipient notification metadata (first call)
-        recipient_call_args = (
-            mock_notification_service.create_notification.call_args_list[0]
-        )
-        recipient_metadata = recipient_call_args[1]["metadata"]
-
-        self.assertEqual(recipient_metadata["template_type"], "share_recipe_recipient")
-        self.assertEqual(
-            recipient_metadata["recipe_id"], str(self.share_recipe_request.recipe_id)
-        )
-        self.assertEqual(
-            recipient_metadata["sharer_id"], str(self.share_recipe_request.sharer_id)
-        )
-        self.assertEqual(
-            recipient_metadata["share_message"], self.share_recipe_request.share_message
-        )
-
-        # Verify author notification metadata (last call)
-        author_call_args = mock_notification_service.create_notification.call_args_list[
-            -1
-        ]
-        author_metadata = author_call_args[1]["metadata"]
-
-        self.assertEqual(author_metadata["template_type"], "share_recipe_author")
-        self.assertIn("is_anonymous", author_metadata)
-
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    def test_send_notifications_queue_flag_enabled(
-        self,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test notifications are queued for async processing."""
-        mock_require_current_user.return_value = self.admin_user
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
-
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
-
-        # Execute
-        self.service.share_recipe_with_users(
-            request=self.share_recipe_request,
-        )
-
-        # Verify queue flag was set to True
-        call_args = mock_notification_service.create_notification.call_args
-        self.assertIs(call_args[1]["auto_queue"], True)
-
-    @patch("core.services.recipe_notification_service.require_current_user")
-    @patch("core.services.recipe_notification_service.media_management_service_client")
-    @patch("core.services.recipe_notification_service.recipe_management_service_client")
-    @patch("core.services.recipe_notification_service.user_client")
-    @patch("core.services.recipe_notification_service.notification_service")
-    def test_send_notifications_multiple_recipients(
-        self,
-        mock_notification_service,
-        mock_user_client,
-        mock_recipe_client,
-        mock_media_client,
-        mock_require_current_user,
-    ):
-        """Test handling multiple recipients correctly."""
-        mock_require_current_user.return_value = self.admin_user
-        # Create request with 3 recipients
-        request = ShareRecipeRequest(
-            recipient_ids=[uuid4(), uuid4(), uuid4()],
-            recipe_id=123,
-            sharer_id=uuid4(),
-            share_message="Amazing recipe!",
-        )
-
-        # Setup mocks
-        mock_recipe_client.get_recipe.return_value = self.mock_recipe
-        mock_media_client.get_recipe_media_ids.return_value = []
-        mock_user_client.get_user.return_value = self.mock_user
-
-        mock_notification = Mock()
-        mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
-
-        # Execute
-        response = self.service.share_recipe_with_users(
-            request=request,
-        )
-
-        # Assertions - 3 recipients + 1 author
-        self.assertEqual(response.queued_count, 4)
-        self.assertEqual(len(response.notifications), 4)
-        self.assertEqual(mock_notification_service.create_notification.call_count, 4)
+    call_kwargs = mock_notification_service.create_notification.call_args[1]
+    assert call_kwargs["notification_category"] == "RECIPE_SHARED"

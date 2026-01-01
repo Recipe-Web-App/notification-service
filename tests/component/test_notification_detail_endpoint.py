@@ -12,6 +12,7 @@ from uuid import uuid4
 from django.test import Client, TestCase
 
 from core.auth.oauth2 import OAuth2User
+from core.enums import NotificationStatusEnum
 from core.models.notification import Notification
 
 
@@ -26,11 +27,14 @@ class TestNotificationDetailGetEndpoint(TestCase):
         self.other_user_id = uuid4()
         self.url = f"/api/v1/notification/notifications/{self.notification_id}"
 
-        # Mock notification
+        # Mock notification with both new schema fields (for authorization)
+        # and old schema fields (for NotificationDetail serialization)
         self.mock_notification = Mock(spec=Notification)
         self.mock_notification.notification_id = self.notification_id
-        self.mock_notification.recipient = Mock()
-        self.mock_notification.recipient.user_id = self.user_id
+        self.mock_notification.user_id = (
+            self.user_id
+        )  # New schema uses user_id for authorization
+        # Old schema fields for NotificationDetail serialization
         self.mock_notification.recipient_id = self.user_id
         self.mock_notification.recipient_email = "user@example.com"
         self.mock_notification.subject = "Test Notification"
@@ -239,14 +243,14 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         self.other_user_id = uuid4()
         self.url = f"/api/v1/notification/notifications/{self.notification_id}"
 
-        # Mock notification
+        # Mock notification with new two-table schema
         self.mock_notification = Mock(spec=Notification)
         self.mock_notification.notification_id = self.notification_id
-        self.mock_notification.recipient = Mock()
-        self.mock_notification.recipient.user_id = self.user_id
-        self.mock_notification.status = "sent"
-        self.mock_notification.delete = Mock()
+        self.mock_notification.user_id = self.user_id  # New schema uses user_id
+        self.mock_notification.is_deleted = False
+        self.mock_notification.save = Mock()
 
+    @patch("core.services.notification_service.NotificationStatus.objects.filter")
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.notification_service.Notification.objects.get")
@@ -255,6 +259,7 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         mock_notification_get,
         mock_authenticate,
         mock_get_current_user,
+        mock_status_filter,
     ):
         """Test DELETE with admin scope returns HTTP 204."""
         # Setup authentication
@@ -269,13 +274,20 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         # Setup notification mock
         mock_notification_get.return_value = self.mock_notification
 
+        # Mock NotificationStatus to return non-QUEUED status
+        mock_status = Mock()
+        mock_status.status = NotificationStatusEnum.SENT.value
+        mock_status_filter.return_value.first.return_value = mock_status
+
         # Execute
         response = self.client.delete(self.url)
 
         # Assertions
         self.assertEqual(response.status_code, 204)
-        self.mock_notification.delete.assert_called_once()
+        # Service uses soft delete (is_deleted=True, save())
+        self.mock_notification.save.assert_called_once()
 
+    @patch("core.services.notification_service.NotificationStatus.objects.filter")
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.notification_service.Notification.objects.get")
@@ -284,6 +296,7 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         mock_notification_get,
         mock_authenticate,
         mock_get_current_user,
+        mock_status_filter,
     ):
         """Test DELETE as notification owner returns HTTP 204."""
         # Setup authentication as owner
@@ -298,12 +311,18 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         # Setup notification mock
         mock_notification_get.return_value = self.mock_notification
 
+        # Mock NotificationStatus to return non-QUEUED status
+        mock_status = Mock()
+        mock_status.status = NotificationStatusEnum.SENT.value
+        mock_status_filter.return_value.first.return_value = mock_status
+
         # Execute
         response = self.client.delete(self.url)
 
         # Assertions
         self.assertEqual(response.status_code, 204)
-        self.mock_notification.delete.assert_called_once()
+        # Service uses soft delete (is_deleted=True, save())
+        self.mock_notification.save.assert_called_once()
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
@@ -332,8 +351,10 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
 
         # Assertions
         self.assertEqual(response.status_code, 403)
-        self.mock_notification.delete.assert_not_called()
+        # Save should not be called since authorization failed
+        self.mock_notification.save.assert_not_called()
 
+    @patch("core.services.notification_service.NotificationStatus.objects.filter")
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.notification_service.Notification.objects.get")
@@ -342,6 +363,7 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         mock_notification_get,
         mock_authenticate,
         mock_get_current_user,
+        mock_status_filter,
     ):
         """Test DELETE with queued notification returns HTTP 409."""
         # Setup authentication
@@ -353,13 +375,18 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         mock_authenticate.return_value = (admin_user, None)
         mock_get_current_user.return_value = admin_user
 
-        # Setup queued notification
+        # Setup notification with new schema
         queued_notification = Mock(spec=Notification)
         queued_notification.notification_id = self.notification_id
-        queued_notification.recipient = Mock()
-        queued_notification.recipient.user_id = self.user_id
-        queued_notification.status = Notification.QUEUED
+        queued_notification.user_id = self.user_id  # New schema uses user_id
+        queued_notification.is_deleted = False
+        queued_notification.save = Mock()
         mock_notification_get.return_value = queued_notification
+
+        # Mock the NotificationStatus query to return QUEUED status
+        mock_status = Mock()
+        mock_status.status = NotificationStatusEnum.QUEUED.value
+        mock_status_filter.return_value.first.return_value = mock_status
 
         # Execute
         response = self.client.delete(self.url)
@@ -368,7 +395,8 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         self.assertEqual(response.status_code, 409)
         data = response.json()
         self.assertEqual(data["error"], "conflict")
-        queued_notification.delete.assert_not_called()
+        # Save should not be called since status is QUEUED
+        queued_notification.save.assert_not_called()
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
@@ -430,6 +458,7 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 401)
 
+    @patch("core.services.notification_service.NotificationStatus.objects.filter")
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.notification_service.Notification.objects.get")
@@ -438,6 +467,7 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         mock_notification_get,
         mock_authenticate,
         mock_get_current_user,
+        mock_status_filter,
     ):
         """Test DELETE with sent notification succeeds (only queued is blocked)."""
         # Setup authentication
@@ -449,9 +479,13 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         mock_authenticate.return_value = (admin_user, None)
         mock_get_current_user.return_value = admin_user
 
-        # Setup sent notification
-        self.mock_notification.status = "sent"
+        # Setup notification mock
         mock_notification_get.return_value = self.mock_notification
+
+        # Mock NotificationStatus to return SENT status
+        mock_status = Mock()
+        mock_status.status = NotificationStatusEnum.SENT.value
+        mock_status_filter.return_value.first.return_value = mock_status
 
         # Execute
         response = self.client.delete(self.url)
@@ -459,6 +493,7 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 204)
 
+    @patch("core.services.notification_service.NotificationStatus.objects.filter")
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.notification_service.Notification.objects.get")
@@ -467,6 +502,7 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         mock_notification_get,
         mock_authenticate,
         mock_get_current_user,
+        mock_status_filter,
     ):
         """Test DELETE with failed notification succeeds (only queued is blocked)."""
         # Setup authentication
@@ -478,9 +514,13 @@ class TestNotificationDetailDeleteEndpoint(TestCase):
         mock_authenticate.return_value = (admin_user, None)
         mock_get_current_user.return_value = admin_user
 
-        # Setup failed notification
-        self.mock_notification.status = "failed"
+        # Setup notification mock
         mock_notification_get.return_value = self.mock_notification
+
+        # Mock NotificationStatus to return FAILED status
+        mock_status = Mock()
+        mock_status.status = NotificationStatusEnum.FAILED.value
+        mock_status_filter.return_value.first.return_value = mock_status
 
         # Execute
         response = self.client.delete(self.url)

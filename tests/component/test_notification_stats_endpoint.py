@@ -9,7 +9,13 @@ from django.db.models.signals import post_save
 from django.test import Client, TestCase
 
 from core.auth.oauth2 import OAuth2User
+from core.enums.notification import (
+    NotificationCategory,
+    NotificationStatusEnum,
+    NotificationType,
+)
 from core.models.notification import Notification
+from core.models.notification_status import NotificationStatus
 from core.models.user import User
 from core.signals.user_signals import send_welcome_email
 
@@ -37,30 +43,51 @@ class TestNotificationStatsEndpoint(TestCase):
             password_hash="test_hash",
         )
 
-        # Create notifications with different statuses
+        # Create notifications with different statuses using new schema
         now = datetime.now(UTC)
+
+        # Create notification and status for SENT
         self.notification_sent = Notification.objects.create(
-            recipient=self.user,
+            user=self.user,
+            notification_category=NotificationCategory.RECIPE_LIKED.value,
+            notification_data={"template_version": "1.0", "recipe_title": "Test"},
+            is_read=False,
+        )
+        NotificationStatus.objects.create(
+            notification=self.notification_sent,
+            notification_type=NotificationType.EMAIL.value,
+            status=NotificationStatusEnum.SENT.value,
             recipient_email=self.user.email,
-            subject="Test Sent",
-            message="Message",
-            status=Notification.SENT,
             queued_at=now - timedelta(seconds=30),
             sent_at=now,
         )
+
+        # Create notification and status for PENDING
         self.notification_pending = Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Test Pending",
-            message="Message",
-            status=Notification.PENDING,
+            user=self.user,
+            notification_category=NotificationCategory.RECIPE_COMMENTED.value,
+            notification_data={"template_version": "1.0", "recipe_title": "Test"},
+            is_read=False,
         )
-        self.notification_failed = Notification.objects.create(
-            recipient=self.user,
+        NotificationStatus.objects.create(
+            notification=self.notification_pending,
+            notification_type=NotificationType.EMAIL.value,
+            status=NotificationStatusEnum.PENDING.value,
             recipient_email=self.user.email,
-            subject="Test Failed",
-            message="Message",
-            status=Notification.FAILED,
+        )
+
+        # Create notification and status for FAILED
+        self.notification_failed = Notification.objects.create(
+            user=self.user,
+            notification_category=NotificationCategory.NEW_FOLLOWER.value,
+            notification_data={"template_version": "1.0", "follower_name": "Test"},
+            is_read=False,
+        )
+        NotificationStatus.objects.create(
+            notification=self.notification_failed,
+            notification_type=NotificationType.EMAIL.value,
+            status=NotificationStatusEnum.FAILED.value,
+            recipient_email=self.user.email,
             error_message="SMTP connection timeout",
         )
 
@@ -116,8 +143,8 @@ class TestNotificationStatsEndpoint(TestCase):
         self.assertAlmostEqual(data["success_rate"], 1 / 3, places=2)
 
         # Verify type breakdown
-        self.assertIn("email", data["type_breakdown"])
-        self.assertEqual(data["type_breakdown"]["email"], 3)
+        self.assertIn("EMAIL", data["type_breakdown"])
+        self.assertEqual(data["type_breakdown"]["EMAIL"], 3)
 
         # Verify failed notifications breakdown
         failed_notifications = data["failed_notifications"]
@@ -167,7 +194,8 @@ class TestNotificationStatsEndpoint(TestCase):
         self, mock_authenticate, mock_require_current_user, mock_get_current_user
     ):
         """Test GET with no notifications returns all zeros."""
-        # Delete all notifications
+        # Delete all notifications and statuses
+        NotificationStatus.objects.all().delete()
         Notification.objects.all().delete()
 
         admin_user = OAuth2User(
@@ -208,15 +236,22 @@ class TestNotificationStatsEndpoint(TestCase):
         mock_require_current_user.return_value = admin_user
         mock_get_current_user.return_value = admin_user
 
-        # Create notification in the past
+        # Create old notification
         past_date = datetime.now(UTC) - timedelta(days=10)
-        Notification.objects.create(
-            recipient=self.user,
+        old_notification = Notification.objects.create(
+            user=self.user,
+            notification_category=NotificationCategory.RECIPE_LIKED.value,
+            notification_data={"template_version": "1.0", "recipe_title": "Old"},
+            is_read=False,
+        )
+        # Manually set created_at to past
+        Notification.objects.filter(pk=old_notification.pk).update(created_at=past_date)
+
+        NotificationStatus.objects.create(
+            notification=old_notification,
+            notification_type=NotificationType.EMAIL.value,
+            status=NotificationStatusEnum.SENT.value,
             recipient_email=self.user.email,
-            subject="Old notification",
-            message="Message",
-            status=Notification.SENT,
-            created_at=past_date,
         )
 
         # Filter to only recent notifications (last 5 days)
@@ -231,7 +266,6 @@ class TestNotificationStatsEndpoint(TestCase):
         data = response.json()
 
         # Should include recent notifications but filter works
-        # Note: Exact count may vary due to timezone handling in test DB
         self.assertGreater(data["total_notifications"], 0)
         self.assertLessEqual(data["total_notifications"], 4)
 
@@ -319,25 +353,36 @@ class TestNotificationStatsEndpoint(TestCase):
         self, mock_authenticate, mock_require_current_user, mock_get_current_user
     ):
         """Test success rate is calculated correctly."""
-        # Clear existing notifications
+        # Clear existing data
+        NotificationStatus.objects.all().delete()
         Notification.objects.all().delete()
 
         # Create 7 sent, 3 failed notifications
         for i in range(7):
-            Notification.objects.create(
-                recipient=self.user,
+            notif = Notification.objects.create(
+                user=self.user,
+                notification_category=NotificationCategory.RECIPE_LIKED.value,
+                notification_data={"template_version": "1.0", "recipe_title": f"R{i}"},
+                is_read=False,
+            )
+            NotificationStatus.objects.create(
+                notification=notif,
+                notification_type=NotificationType.EMAIL.value,
+                status=NotificationStatusEnum.SENT.value,
                 recipient_email=self.user.email,
-                subject=f"Sent {i}",
-                message="Message",
-                status=Notification.SENT,
             )
         for i in range(3):
-            Notification.objects.create(
-                recipient=self.user,
+            notif = Notification.objects.create(
+                user=self.user,
+                notification_category=NotificationCategory.RECIPE_LIKED.value,
+                notification_data={"template_version": "1.0", "recipe_title": f"F{i}"},
+                is_read=False,
+            )
+            NotificationStatus.objects.create(
+                notification=notif,
+                notification_type=NotificationType.EMAIL.value,
+                status=NotificationStatusEnum.FAILED.value,
                 recipient_email=self.user.email,
-                subject=f"Failed {i}",
-                message="Message",
-                status=Notification.FAILED,
             )
 
         admin_user = OAuth2User(
@@ -367,29 +412,41 @@ class TestNotificationStatsEndpoint(TestCase):
         self, mock_authenticate, mock_require_current_user, mock_get_current_user
     ):
         """Test average send time is calculated correctly."""
-        # Clear existing notifications
+        # Clear existing data
+        NotificationStatus.objects.all().delete()
         Notification.objects.all().delete()
 
         now = datetime.now(UTC)
 
         # Create notifications with known send times
         # Notification 1: 10 seconds
-        Notification.objects.create(
-            recipient=self.user,
+        notif1 = Notification.objects.create(
+            user=self.user,
+            notification_category=NotificationCategory.RECIPE_LIKED.value,
+            notification_data={"template_version": "1.0", "recipe_title": "Test1"},
+            is_read=False,
+        )
+        NotificationStatus.objects.create(
+            notification=notif1,
+            notification_type=NotificationType.EMAIL.value,
+            status=NotificationStatusEnum.SENT.value,
             recipient_email=self.user.email,
-            subject="Test 1",
-            message="Message",
-            status=Notification.SENT,
             queued_at=now - timedelta(seconds=10),
             sent_at=now,
         )
+
         # Notification 2: 20 seconds
-        Notification.objects.create(
-            recipient=self.user,
+        notif2 = Notification.objects.create(
+            user=self.user,
+            notification_category=NotificationCategory.RECIPE_LIKED.value,
+            notification_data={"template_version": "1.0", "recipe_title": "Test2"},
+            is_read=False,
+        )
+        NotificationStatus.objects.create(
+            notification=notif2,
+            notification_type=NotificationType.EMAIL.value,
+            status=NotificationStatusEnum.SENT.value,
             recipient_email=self.user.email,
-            subject="Test 2",
-            message="Message",
-            status=Notification.SENT,
             queued_at=now - timedelta(seconds=20),
             sent_at=now,
         )
@@ -419,42 +476,32 @@ class TestNotificationStatsEndpoint(TestCase):
         self, mock_authenticate, mock_require_current_user, mock_get_current_user
     ):
         """Test error types are grouped correctly."""
-        # Clear existing notifications
+        # Clear existing data
+        NotificationStatus.objects.all().delete()
         Notification.objects.all().delete()
 
         # Create failed notifications with different error types
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="SMTP Error 1",
-            message="Message",
-            status=Notification.FAILED,
-            error_message="SMTP connection failed",
-        )
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="SMTP Error 2",
-            message="Message",
-            status=Notification.FAILED,
-            error_message="Mail server rejected message",
-        )
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Timeout Error",
-            message="Message",
-            status=Notification.FAILED,
-            error_message="Connection timeout",
-        )
-        Notification.objects.create(
-            recipient=self.user,
-            recipient_email=self.user.email,
-            subject="Invalid Email",
-            message="Message",
-            status=Notification.FAILED,
-            error_message="Invalid email address format",
-        )
+        error_messages = [
+            "SMTP connection failed",
+            "Mail server rejected message",
+            "Connection timeout",
+            "Invalid email address format",
+        ]
+
+        for i, error_msg in enumerate(error_messages):
+            notif = Notification.objects.create(
+                user=self.user,
+                notification_category=NotificationCategory.RECIPE_LIKED.value,
+                notification_data={"template_version": "1.0", "recipe_title": f"E{i}"},
+                is_read=False,
+            )
+            NotificationStatus.objects.create(
+                notification=notif,
+                notification_type=NotificationType.EMAIL.value,
+                status=NotificationStatusEnum.FAILED.value,
+                recipient_email=self.user.email,
+                error_message=error_msg,
+            )
 
         admin_user = OAuth2User(
             user_id=str(self.admin_id),

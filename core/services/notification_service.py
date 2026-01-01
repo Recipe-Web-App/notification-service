@@ -1,4 +1,10 @@
-"""Notification service for managing email notifications."""
+"""Notification service for managing notifications with two-table design.
+
+This module provides the NotificationService class which manages the creation,
+queuing, and lifecycle of notifications using the normalized two-table design:
+- Notification: User-facing notification data
+- NotificationStatus: Per-channel delivery tracking (EMAIL, IN_APP, etc.)
+"""
 
 from typing import Any
 from uuid import UUID
@@ -6,14 +12,15 @@ from uuid import UUID
 from django.core.exceptions import PermissionDenied
 from django.db.models import QuerySet
 from django.http import Http404
+from django.utils import timezone
 
 import django_rq
 import structlog
 
 from core.auth.context import require_current_user
+from core.enums.notification import NotificationType
 from core.exceptions.downstream_exceptions import ConflictError, UserNotFoundError
-from core.models.notification import Notification
-from core.models.user import User
+from core.models import Notification, NotificationStatus, User
 
 logger = structlog.get_logger(__name__)
 
@@ -22,7 +29,9 @@ class NotificationService:
     """Service for managing notifications and email queue.
 
     Provides high-level API for creating, queuing, and managing notifications.
-    Integrates with Django-RQ for reliable async email delivery.
+    Uses the normalized two-table design:
+    - Notification: User-facing notification data
+    - NotificationStatus: Per-channel delivery tracking
     """
 
     def __init__(self) -> None:
@@ -31,178 +40,188 @@ class NotificationService:
 
     def create_notification(
         self,
+        user: User,
+        notification_category: str,
+        notification_data: dict[str, Any],
         recipient_email: str,
-        subject: str,
-        message: str,
-        recipient: User | None = None,
-        notification_type: str = Notification.EMAIL,
-        metadata: dict[str, Any] | None = None,
         auto_queue: bool = True,
-    ) -> Notification:
-        """Create a new notification.
+    ) -> tuple[Notification, list[NotificationStatus]]:
+        """Create a new notification with delivery status records.
+
+        Creates a Notification record and NotificationStatus records for
+        EMAIL and IN_APP channels. The IN_APP status is marked as SENT
+        immediately since it doesn't require delivery.
 
         Args:
-            recipient_email: Email address for delivery
-            subject: Email subject line
-            message: HTML or plain text message content
-            recipient: Optional User instance
-            notification_type: Type of notification (default: EMAIL)
-            metadata: Additional metadata
-            auto_queue: Automatically queue for sending (default: True)
+            user: User instance receiving the notification.
+            notification_category: Category determining template rendering.
+            notification_data: Template parameters (must include template_version).
+            recipient_email: Email address for EMAIL delivery.
+            auto_queue: Automatically queue EMAIL for sending (default: True).
 
         Returns:
-            Created Notification instance
+            Tuple of (Notification, [NotificationStatus, ...]).
         """
-        # Create notification
         notification = Notification.objects.create(
-            recipient=recipient,
+            user=user,
+            notification_category=notification_category,
+            notification_data=notification_data,
+            is_read=False,
+            is_deleted=False,
+        )
+
+        email_status = NotificationStatus.objects.create(
+            notification=notification,
+            notification_type=NotificationType.EMAIL.value,
+            status="PENDING",
             recipient_email=recipient_email,
-            subject=subject,
-            message=message,
-            notification_type=notification_type,
-            metadata=metadata,
+        )
+
+        in_app_status = NotificationStatus.objects.create(
+            notification=notification,
+            notification_type=NotificationType.IN_APP.value,
+            status="SENT",
+            sent_at=timezone.now(),
         )
 
         logger.info(
             "notification_created",
             notification_id=str(notification.notification_id),
+            user_id=str(user.user_id),
+            notification_category=notification_category,
             recipient_email=recipient_email,
-            notification_type=notification_type,
         )
 
-        # Queue for sending if auto_queue is True
         if auto_queue:
             self.queue_notification(notification.notification_id)
 
-        return notification
+        return notification, [email_status, in_app_status]
 
-    def queue_notification(self, notification_id: UUID) -> None:
-        """Queue a notification for async sending.
+    def queue_notification(
+        self,
+        notification_id: UUID,
+        notification_type: str = NotificationType.EMAIL.value,
+    ) -> None:
+        """Queue a notification channel for async sending.
 
         Args:
-            notification_id: ID of notification to queue
+            notification_id: ID of notification to queue.
+            notification_type: Channel to queue (default: EMAIL).
         """
-        # Import here to avoid circular dependency
-        notification = Notification.objects.get(notification_id=notification_id)
-
-        # Only queue if not already sent or queued
-        if notification.status in [Notification.SENT, Notification.QUEUED]:
-            logger.warning(
-                "notification_already_processed",
+        try:
+            status = NotificationStatus.objects.get(
+                notification_id=notification_id,
+                notification_type=notification_type,
+            )
+        except NotificationStatus.DoesNotExist:
+            logger.error(
+                "notification_status_not_found",
                 notification_id=str(notification_id),
-                status=notification.status,
+                notification_type=notification_type,
             )
             return
 
-        # Queue the notification
+        if status.status in ["SENT", "QUEUED"]:
+            logger.warning(
+                "notification_already_processed",
+                notification_id=str(notification_id),
+                notification_type=notification_type,
+                status=status.status,
+            )
+            return
+
         self.queue.enqueue(
             "core.jobs.email_jobs.send_email_job",
             str(notification_id),
         )
 
-        # Update status
-        notification.mark_queued()
+        status.mark_queued()
 
         logger.info(
             "notification_queued",
             notification_id=str(notification_id),
+            notification_type=notification_type,
         )
 
     def get_notification(self, notification_id: UUID) -> Notification:
         """Get a notification by ID.
 
         Args:
-            notification_id: Notification ID
+            notification_id: Notification ID.
 
         Returns:
-            Notification instance
+            Notification instance.
 
         Raises:
-            Notification.DoesNotExist: If notification not found
+            Notification.DoesNotExist: If notification not found.
         """
         return Notification.objects.get(notification_id=notification_id)
 
     def get_notifications_for_user(
         self,
         user: User,
-        status: str | None = None,
-        notification_type: str | None = None,
+        include_deleted: bool = False,
         limit: int = 100,
     ) -> QuerySet[Notification]:
         """Get notifications for a user (internal helper method).
 
         Args:
-            user: User instance
-            status: Filter by status (optional)
-            notification_type: Filter by type (optional)
-            limit: Maximum number of results
+            user: User instance.
+            include_deleted: Include soft-deleted notifications (default: False).
+            limit: Maximum number of results.
 
         Returns:
-            QuerySet of Notification instances
+            QuerySet of Notification instances.
         """
-        queryset = Notification.objects.filter(recipient=user)
+        queryset = Notification.objects.filter(user=user)
 
-        if status:
-            queryset = queryset.filter(status=status)
+        if not include_deleted:
+            queryset = queryset.filter(is_deleted=False)
 
-        if notification_type:
-            queryset = queryset.filter(notification_type=notification_type)
+        return queryset.order_by("-created_at")[:limit]
 
-        return queryset[:limit]
-
-    def get_notifications_by_email(
+    def get_pending_email_statuses(
         self,
-        email: str,
-        status: str | None = None,
-        notification_type: str | None = None,
         limit: int = 100,
-    ) -> QuerySet[Notification]:
-        """Get notifications by email address.
+    ) -> QuerySet[NotificationStatus]:
+        """Get pending EMAIL statuses that need to be queued.
 
         Args:
-            email: Email address
-            status: Filter by status (optional)
-            notification_type: Filter by type (optional)
-            limit: Maximum number of results
+            limit: Maximum number of results.
 
         Returns:
-            QuerySet of Notification instances
+            QuerySet of NotificationStatus instances.
         """
-        queryset = Notification.objects.filter(recipient_email=email)
-
-        if status:
-            queryset = queryset.filter(status=status)
-
-        if notification_type:
-            queryset = queryset.filter(notification_type=notification_type)
-
-        return queryset[:limit]
+        return NotificationStatus.objects.filter(
+            notification_type=NotificationType.EMAIL.value,
+            status="PENDING",
+        )[:limit]
 
     def retry_failed_notifications(self, max_retries: int = 3) -> int:
-        """Retry failed notifications that haven't exceeded max retries.
+        """Retry failed EMAIL notifications that haven't exceeded max retries.
 
         Args:
-            max_retries: Maximum number of retry attempts
+            max_retries: Maximum number of retry attempts.
 
         Returns:
-            Number of notifications requeued
+            Number of notifications requeued.
         """
-        # Find failed notifications that can be retried
-        failed_notifications = Notification.objects.filter(
-            status=Notification.FAILED,
-            retry_count__lt=max_retries,
-        )
+        failed_statuses = NotificationStatus.objects.filter(
+            notification_type=NotificationType.EMAIL.value,
+            status="FAILED",
+        ).select_related("notification")
 
         count = 0
-        for notification in failed_notifications:
-            if notification.can_retry():
-                # Reset status to pending
-                notification.status = Notification.PENDING
-                notification.error_message = ""
-                notification.save(update_fields=["status", "error_message"])
+        for status in failed_statuses:
+            if status.can_retry(max_retries):
+                status.status = "PENDING"
+                status.error_message = None
+                status.save(update_fields=["status", "error_message", "updated_at"])
 
-                # Requeue
-                self.queue_notification(notification.notification_id)
+                self.queue_notification(
+                    status.notification_id,
+                    status.notification_type,
+                )
                 count += 1
 
         logger.info(
@@ -212,42 +231,26 @@ class NotificationService:
 
         return count
 
-    def get_pending_notifications(self, limit: int = 100) -> QuerySet[Notification]:
-        """Get pending notifications that need to be queued.
-
-        Args:
-            limit: Maximum number of results
-
-        Returns:
-            QuerySet of Notification instances
-        """
-        return Notification.objects.filter(status=Notification.PENDING)[:limit]
-
     def get_my_notifications(
         self,
-        status: str | None = None,
-        notification_type: str | None = None,
+        include_deleted: bool = False,
     ) -> QuerySet[Notification]:
         """Get notifications for the authenticated user.
 
         This method uses the security context to retrieve the current user
-        and returns their notifications. Authorization is enforced - users
-        can only see their own notifications unless they have admin scope.
+        and returns their notifications.
 
         Args:
-            status: Filter by status (optional)
-            notification_type: Filter by type (optional)
+            include_deleted: Include soft-deleted notifications (default: False).
 
         Returns:
-            QuerySet of Notification instances ordered by created_at DESC
+            QuerySet of Notification instances ordered by created_at DESC.
 
         Raises:
-            PermissionDenied: If user is not authenticated
+            PermissionDenied: If user is not authenticated or lacks required scope.
         """
-        # Get current user from security context
         current_user = require_current_user()
 
-        # Check user has required scope
         has_user_scope = current_user.has_scope("notification:user")
         has_admin_scope = current_user.has_scope("notification:admin")
 
@@ -261,89 +264,41 @@ class NotificationService:
                 "Requires notification:user or notification:admin scope"
             )
 
-        # Query by recipient_email since recipient FK is not populated in production
-        # We use email from the OAuth2 token which is stored in current_user
-        # Note: OAuth2User doesn't have an email attribute, we need to query by user_id
-        # However, since recipient FK isn't populated, we need to use another approach
-        # For now, we'll filter by recipient_email matching the user's email
-        # This requires fetching the user's email from the token or user service
+        queryset = Notification.objects.filter(user_id=current_user.user_id)
 
-        # Since OAuth2User only has user_id, we need to get the email
-        # The most reliable way is to query by recipient_email
-        # But we need the email address from somewhere
-        # Looking at the token structure, we should have email in the token
-        # For now, let's use a query that works with the current data model
-
-        # Filter by recipient user_id if recipient FK is set, or by email
-        queryset = Notification.objects.filter(recipient_email__isnull=False)
-
-        # Since we don't have a direct way to get the email from OAuth2User,
-        # we'll need to enhance this. For now, let's use recipient__user_id
-        # Actually, looking at the get_notification_for_user method, it uses recipient
-        # Let's follow the same pattern but query for all notifications
-
-        # The issue is that recipient FK is not populated in production
-        # So we need to query by recipient_email
-        # We'll need to get the user's email somehow
-        # Let's check if we can get it from the User model using user_id
-
-        try:
-            # Try to get user by user_id to fetch their email
-            user = User.objects.get(user_id=current_user.user_id)
-            queryset = Notification.objects.filter(recipient_email=user.email)
-        except User.DoesNotExist:
-            # If user not found in local DB, return empty queryset
-            # This shouldn't happen in normal flow
-            logger.warning(
-                "user_not_found_for_notifications",
-                user_id=current_user.user_id,
-            )
-            queryset = Notification.objects.none()
-
-        # Apply filters
-        if status:
-            queryset = queryset.filter(status=status)
-
-        if notification_type:
-            queryset = queryset.filter(notification_type=notification_type)
+        if not include_deleted:
+            queryset = queryset.filter(is_deleted=False)
 
         logger.info(
             "user_notifications_queried",
             user_id=current_user.user_id,
-            status_filter=status,
-            type_filter=notification_type,
+            include_deleted=include_deleted,
         )
 
-        # Return queryset ordered by created_at DESC - pagination handled by view
         return queryset.order_by("-created_at")
 
     def get_user_notifications(
         self,
         user_id: UUID,
-        status: str | None = None,
-        notification_type: str | None = None,
+        include_deleted: bool = False,
     ) -> QuerySet[Notification]:
         """Get notifications for a specific user by user_id (admin only).
 
         This method allows admins to retrieve notifications for any user.
-        It queries by recipient__user_id directly for efficiency.
 
         Args:
-            user_id: UUID of the user whose notifications to retrieve
-            status: Filter by status (optional)
-            notification_type: Filter by type (optional)
+            user_id: UUID of the user whose notifications to retrieve.
+            include_deleted: Include soft-deleted notifications (default: False).
 
         Returns:
-            QuerySet of Notification instances ordered by created_at DESC
+            QuerySet of Notification instances ordered by created_at DESC.
 
         Raises:
-            PermissionDenied: If current user lacks admin scope
-            UserNotFoundError: If user with given user_id does not exist
+            PermissionDenied: If current user lacks admin scope.
+            UserNotFoundError: If user with given user_id does not exist.
         """
-        # Get current user from security context
         current_user = require_current_user()
 
-        # Check user has admin scope (this method is admin-only)
         if not current_user.has_scope("notification:admin"):
             logger.warning(
                 "insufficient_scope_for_user_notifications",
@@ -353,7 +308,6 @@ class NotificationService:
             )
             raise PermissionDenied("Requires notification:admin scope")
 
-        # Check if user exists in the local database
         try:
             User.objects.get(user_id=user_id)
         except User.DoesNotExist as err:
@@ -364,48 +318,40 @@ class NotificationService:
             )
             raise UserNotFoundError(str(user_id)) from err
 
-        # Query notifications by recipient user_id directly (more efficient)
-        # Filter by recipient__user_id for direct relationship query
-        queryset = Notification.objects.filter(recipient__user_id=user_id)
+        queryset = Notification.objects.filter(user_id=user_id)
 
-        # Apply filters
-        if status:
-            queryset = queryset.filter(status=status)
-
-        if notification_type:
-            queryset = queryset.filter(notification_type=notification_type)
+        if not include_deleted:
+            queryset = queryset.filter(is_deleted=False)
 
         logger.info(
             "user_notifications_by_id_queried",
             target_user_id=str(user_id),
             requester_user_id=current_user.user_id,
-            status_filter=status,
-            type_filter=notification_type,
+            include_deleted=include_deleted,
         )
 
-        # Return queryset ordered by created_at DESC - pagination handled by view
         return queryset.order_by("-created_at")
 
     def get_notification_for_user(
-        self, notification_id: UUID, include_message: bool = False
+        self,
+        notification_id: UUID,
+        _include_message: bool = False,
     ) -> Notification:
         """Get a notification for the authenticated user with authorization check.
 
         Args:
-            notification_id: Notification ID
-            include_message: Whether to include the message body in the response
+            notification_id: Notification ID.
+            _include_message: Unused, kept for API compatibility.
 
         Returns:
-            Notification instance
+            Notification instance.
 
         Raises:
-            Http404: If notification not found
-            PermissionDenied: If user is not authorized to view this notification
+            Http404: If notification not found.
+            PermissionDenied: If user is not authorized to view this notification.
         """
-        # Get current user from security context
         current_user = require_current_user()
 
-        # Fetch notification
         try:
             notification = Notification.objects.get(notification_id=notification_id)
         except Notification.DoesNotExist as e:
@@ -416,21 +362,15 @@ class NotificationService:
             )
             raise Http404(f"Notification with ID {notification_id} not found") from e
 
-        # Authorization check
         has_admin_scope = current_user.has_scope("notification:admin")
-        is_owner = (
-            notification.recipient
-            and str(notification.recipient.user_id) == current_user.user_id
-        )
+        is_owner = str(notification.user_id) == current_user.user_id
 
         if not has_admin_scope and not is_owner:
             logger.warning(
                 "unauthorized_notification_access",
                 notification_id=str(notification_id),
                 user_id=current_user.user_id,
-                recipient_id=str(notification.recipient.user_id)
-                if notification.recipient
-                else None,
+                owner_user_id=str(notification.user_id),
             )
             raise PermissionDenied("You can only view your own notifications")
 
@@ -438,26 +378,23 @@ class NotificationService:
             "notification_retrieved",
             notification_id=str(notification_id),
             user_id=current_user.user_id,
-            include_message=include_message,
         )
 
         return notification
 
     def delete_notification(self, notification_id: UUID) -> None:
-        """Delete a notification with authorization and status checks.
+        """Soft delete a notification with authorization and status checks.
 
         Args:
-            notification_id: Notification ID
+            notification_id: Notification ID.
 
         Raises:
-            Http404: If notification not found
-            PermissionDenied: If user is not authorized to delete this notification
-            ConflictError: If notification is in 'queued' status
+            Http404: If notification not found.
+            PermissionDenied: If user is not authorized to delete this notification.
+            ConflictError: If EMAIL delivery is in 'QUEUED' status.
         """
-        # Get current user from security context
         current_user = require_current_user()
 
-        # Fetch notification
         try:
             notification = Notification.objects.get(notification_id=notification_id)
         except Notification.DoesNotExist as e:
@@ -468,39 +405,37 @@ class NotificationService:
             )
             raise Http404(f"Notification with ID {notification_id} not found") from e
 
-        # Authorization check
         has_admin_scope = current_user.has_scope("notification:admin")
-        is_owner = (
-            notification.recipient
-            and str(notification.recipient.user_id) == current_user.user_id
-        )
+        is_owner = str(notification.user_id) == current_user.user_id
 
         if not has_admin_scope and not is_owner:
             logger.warning(
                 "unauthorized_notification_deletion",
                 notification_id=str(notification_id),
                 user_id=current_user.user_id,
-                recipient_id=str(notification.recipient.user_id)
-                if notification.recipient
-                else None,
+                owner_user_id=str(notification.user_id),
             )
             raise PermissionDenied("You can only delete your own notifications")
 
-        # Status check - cannot delete queued notifications
-        if notification.status == Notification.QUEUED:
+        email_status = NotificationStatus.objects.filter(
+            notification_id=notification_id,
+            notification_type=NotificationType.EMAIL.value,
+        ).first()
+
+        if email_status and email_status.status == "QUEUED":
             logger.warning(
                 "cannot_delete_queued_notification",
                 notification_id=str(notification_id),
                 user_id=current_user.user_id,
-                status=notification.status,
+                status=email_status.status,
             )
             raise ConflictError(
                 "Cannot delete notification while it is being processed",
-                detail=f"Notification status is '{notification.status}'",
+                detail="EMAIL delivery is in 'QUEUED' status",
             )
 
-        # Delete the notification
-        notification.delete()
+        notification.is_deleted = True
+        notification.save(update_fields=["is_deleted", "updated_at"])
 
         logger.info(
             "notification_deleted",
@@ -509,5 +444,4 @@ class NotificationService:
         )
 
 
-# Singleton instance
 notification_service = NotificationService()

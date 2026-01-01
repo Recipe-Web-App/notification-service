@@ -1,20 +1,32 @@
-"""Unit tests for recipe featured notification service."""
+"""Unit tests for recipe featured notification service with two-table schema."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
+from django.db.models.signals import post_save
+
 import pytest
 
 from core.auth.oauth2 import OAuth2User
 from core.exceptions import RecipeNotFoundError
+from core.models.user import User
 from core.schemas.notification import RecipeFeaturedRequest
 from core.schemas.recipe import RecipeDto
 from core.schemas.user import UserSearchResult
 from core.services.recipe_notification_service import (
     recipe_notification_service,
 )
+from core.signals.user_signals import send_welcome_email
+
+
+@pytest.fixture(autouse=True)
+def disconnect_signals():
+    """Disconnect signals for all tests."""
+    post_save.disconnect(send_welcome_email, sender=User)
+    yield
+    post_save.connect(send_welcome_email, sender=User)
 
 
 @pytest.fixture
@@ -40,8 +52,8 @@ def mock_recipe():
 
 
 @pytest.fixture
-def mock_user():
-    """Create a mock user."""
+def mock_user_dto():
+    """Create a mock user DTO for downstream client."""
     return UserSearchResult(
         user_id=uuid4(),
         username="testuser",
@@ -53,46 +65,44 @@ def mock_user():
     )
 
 
-@pytest.fixture
-def recipe_featured_request():
-    """Create a recipe featured request."""
-    return RecipeFeaturedRequest(
-        recipient_ids=[uuid4()],
-        recipe_id=123,
-        featured_reason="Editor's Choice",
-    )
-
-
+@pytest.mark.django_db
 @patch("core.services.recipe_notification_service.require_current_user")
 @patch("core.services.recipe_notification_service.recipe_management_service_client")
 @patch("core.services.recipe_notification_service.user_client")
 @patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
 def test_send_recipe_featured_notifications_sends_successfully(
+    mock_user_objects,
     mock_notification_service,
     mock_user_client,
     mock_recipe_client,
     mock_require_current_user,
     mock_admin_user,
     mock_recipe,
-    mock_user,
-    recipe_featured_request,
+    mock_user_dto,
 ):
     """Test recipe featured notifications are sent successfully."""
-    # Setup
+    recipient_id = uuid4()
+    request = RecipeFeaturedRequest(
+        recipient_ids=[recipient_id],
+        recipe_id=123,
+        featured_reason="Editor's Choice",
+    )
+
     mock_require_current_user.return_value = mock_admin_user
     mock_recipe_client.get_recipe.return_value = mock_recipe
-    mock_user_client.get_user.return_value = mock_user
+    mock_user_client.get_user.return_value = mock_user_dto
+
+    mock_db_user = Mock()
+    mock_db_user.user_id = recipient_id
+    mock_user_objects.get.return_value = mock_db_user
 
     mock_notification = Mock()
     mock_notification.notification_id = uuid4()
-    mock_notification_service.create_notification.return_value = mock_notification
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
 
-    # Execute
-    result = recipe_notification_service.send_recipe_featured_notifications(
-        recipe_featured_request
-    )
+    result = recipe_notification_service.send_recipe_featured_notifications(request)
 
-    # Assert
     assert result.queued_count == 1
     assert len(result.notifications) == 1
     mock_notification_service.create_notification.assert_called_once()
@@ -104,154 +114,127 @@ def test_send_recipe_featured_notifications_raises_error_for_nonexistent_recipe(
     mock_recipe_client,
     mock_require_current_user,
     mock_admin_user,
-    recipe_featured_request,
 ):
     """Test RecipeNotFoundError is raised for nonexistent recipe."""
-    # Setup
+    request = RecipeFeaturedRequest(
+        recipient_ids=[uuid4()],
+        recipe_id=123,
+        featured_reason="Editor's Choice",
+    )
+
     mock_require_current_user.return_value = mock_admin_user
     mock_recipe_client.get_recipe.side_effect = RecipeNotFoundError(recipe_id=123)
 
-    # Execute & Assert
     with pytest.raises(RecipeNotFoundError):
-        recipe_notification_service.send_recipe_featured_notifications(
-            recipe_featured_request
-        )
+        recipe_notification_service.send_recipe_featured_notifications(request)
 
 
+@pytest.mark.django_db
 @patch("core.services.recipe_notification_service.require_current_user")
 @patch("core.services.recipe_notification_service.recipe_management_service_client")
 @patch("core.services.recipe_notification_service.user_client")
 @patch("core.services.recipe_notification_service.notification_service")
-def test_send_recipe_featured_notifications_includes_featured_reason_in_metadata(
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_recipe_featured_notifications_includes_featured_reason(
+    mock_user_objects,
     mock_notification_service,
     mock_user_client,
     mock_recipe_client,
     mock_require_current_user,
     mock_admin_user,
     mock_recipe,
-    mock_user,
-    recipe_featured_request,
+    mock_user_dto,
 ):
-    """Test notification metadata includes featured_reason."""
-    # Setup
+    """Test notification_data includes featured_reason."""
+    recipient_id = uuid4()
+    request = RecipeFeaturedRequest(
+        recipient_ids=[recipient_id],
+        recipe_id=123,
+        featured_reason="Editor's Choice",
+    )
+
     mock_require_current_user.return_value = mock_admin_user
     mock_recipe_client.get_recipe.return_value = mock_recipe
-    mock_user_client.get_user.return_value = mock_user
+    mock_user_client.get_user.return_value = mock_user_dto
+
+    mock_db_user = Mock()
+    mock_db_user.user_id = recipient_id
+    mock_user_objects.get.return_value = mock_db_user
 
     mock_notification = Mock()
     mock_notification.notification_id = uuid4()
-    mock_notification_service.create_notification.return_value = mock_notification
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
 
-    # Execute
-    recipe_notification_service.send_recipe_featured_notifications(
-        recipe_featured_request
-    )
+    recipe_notification_service.send_recipe_featured_notifications(request)
 
-    # Assert
     call_kwargs = mock_notification_service.create_notification.call_args[1]
-    metadata = call_kwargs["metadata"]
+    notification_data = call_kwargs["notification_data"]
 
-    assert metadata["template_type"] == "recipe_featured"
-    assert metadata["recipe_id"] == str(recipe_featured_request.recipe_id)
-    assert metadata["featured_reason"] == "Editor's Choice"
-    assert "recipient_id" in metadata
+    assert notification_data["recipe_id"] == "123"
+    assert notification_data["featured_reason"] == "Editor's Choice"
+    assert "recipient_id" in notification_data
+    assert notification_data["template_version"] == "1.0"
 
 
+@pytest.mark.django_db
 @patch("core.services.recipe_notification_service.require_current_user")
 @patch("core.services.recipe_notification_service.recipe_management_service_client")
 @patch("core.services.recipe_notification_service.user_client")
 @patch("core.services.recipe_notification_service.notification_service")
-@patch("core.services.recipe_notification_service.render_to_string")
-def test_send_recipe_featured_notifications_renders_email_template(
-    mock_render,
+@patch("core.services.recipe_notification_service.User.objects")
+def test_send_recipe_featured_notifications_uses_correct_category(
+    mock_user_objects,
     mock_notification_service,
     mock_user_client,
     mock_recipe_client,
     mock_require_current_user,
     mock_admin_user,
     mock_recipe,
-    mock_user,
-    recipe_featured_request,
+    mock_user_dto,
 ):
-    """Test email template is rendered with correct context."""
-    # Setup
+    """Test notification uses correct category."""
+    recipient_id = uuid4()
+    request = RecipeFeaturedRequest(
+        recipient_ids=[recipient_id],
+        recipe_id=123,
+        featured_reason="Editor's Choice",
+    )
+
     mock_require_current_user.return_value = mock_admin_user
     mock_recipe_client.get_recipe.return_value = mock_recipe
-    mock_user_client.get_user.return_value = mock_user
+    mock_user_client.get_user.return_value = mock_user_dto
+
+    mock_db_user = Mock()
+    mock_db_user.user_id = recipient_id
+    mock_user_objects.get.return_value = mock_db_user
 
     mock_notification = Mock()
     mock_notification.notification_id = uuid4()
-    mock_notification_service.create_notification.return_value = mock_notification
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
 
-    mock_render.return_value = "<html>email content</html>"
+    recipe_notification_service.send_recipe_featured_notifications(request)
 
-    # Execute
-    recipe_notification_service.send_recipe_featured_notifications(
-        recipe_featured_request
-    )
-
-    # Assert
-    mock_render.assert_called_once()
-    call_args = mock_render.call_args[0]
-
-    assert call_args[0] == "emails/recipe_featured.html"
-    context = call_args[1]
-
-    assert "recipe_title" in context
-    assert "featured_reason" in context
-    assert "recipe_url" in context
-    assert context["featured_reason"] == "Editor's Choice"
-
-
-@patch("core.services.recipe_notification_service.require_current_user")
-@patch("core.services.recipe_notification_service.recipe_management_service_client")
-@patch("core.services.recipe_notification_service.user_client")
-@patch("core.services.recipe_notification_service.notification_service")
-def test_send_recipe_featured_notifications_auto_queue_enabled(
-    mock_notification_service,
-    mock_user_client,
-    mock_recipe_client,
-    mock_require_current_user,
-    mock_admin_user,
-    mock_recipe,
-    mock_user,
-    recipe_featured_request,
-):
-    """Test notifications are queued for async processing."""
-    # Setup
-    mock_require_current_user.return_value = mock_admin_user
-    mock_recipe_client.get_recipe.return_value = mock_recipe
-    mock_user_client.get_user.return_value = mock_user
-
-    mock_notification = Mock()
-    mock_notification.notification_id = uuid4()
-    mock_notification_service.create_notification.return_value = mock_notification
-
-    # Execute
-    recipe_notification_service.send_recipe_featured_notifications(
-        recipe_featured_request
-    )
-
-    # Assert
     call_kwargs = mock_notification_service.create_notification.call_args[1]
-    assert call_kwargs["auto_queue"] is True
+    assert call_kwargs["notification_category"] == "RECIPE_FEATURED"
 
 
+@pytest.mark.django_db
 @patch("core.services.recipe_notification_service.require_current_user")
 @patch("core.services.recipe_notification_service.recipe_management_service_client")
 @patch("core.services.recipe_notification_service.user_client")
 @patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
 def test_send_recipe_featured_notifications_handles_multiple_recipients(
+    mock_user_objects,
     mock_notification_service,
     mock_user_client,
     mock_recipe_client,
     mock_require_current_user,
     mock_admin_user,
     mock_recipe,
-    mock_user,
+    mock_user_dto,
 ):
     """Test multiple recipients receive notifications."""
-    # Setup
     request = RecipeFeaturedRequest(
         recipient_ids=[uuid4(), uuid4(), uuid4()],
         recipe_id=123,
@@ -260,57 +243,61 @@ def test_send_recipe_featured_notifications_handles_multiple_recipients(
 
     mock_require_current_user.return_value = mock_admin_user
     mock_recipe_client.get_recipe.return_value = mock_recipe
-    mock_user_client.get_user.return_value = mock_user
+    mock_user_client.get_user.return_value = mock_user_dto
+
+    mock_db_user = Mock()
+    mock_user_objects.get.return_value = mock_db_user
 
     mock_notification = Mock()
     mock_notification.notification_id = uuid4()
-    mock_notification_service.create_notification.return_value = mock_notification
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
 
-    # Execute
     result = recipe_notification_service.send_recipe_featured_notifications(request)
 
-    # Assert
     assert result.queued_count == 3
     assert len(result.notifications) == 3
     assert mock_notification_service.create_notification.call_count == 3
 
 
+@pytest.mark.django_db
 @patch("core.services.recipe_notification_service.require_current_user")
 @patch("core.services.recipe_notification_service.recipe_management_service_client")
 @patch("core.services.recipe_notification_service.user_client")
 @patch("core.services.recipe_notification_service.notification_service")
+@patch("core.services.recipe_notification_service.User.objects")
 def test_send_recipe_featured_notifications_without_featured_reason(
+    mock_user_objects,
     mock_notification_service,
     mock_user_client,
     mock_recipe_client,
     mock_require_current_user,
     mock_admin_user,
     mock_recipe,
-    mock_user,
+    mock_user_dto,
 ):
     """Test notification works without featured_reason (optional field)."""
-    # Setup
+    recipient_id = uuid4()
     request = RecipeFeaturedRequest(
-        recipient_ids=[uuid4()],
+        recipient_ids=[recipient_id],
         recipe_id=123,
-        # No featured_reason provided
     )
 
     mock_require_current_user.return_value = mock_admin_user
     mock_recipe_client.get_recipe.return_value = mock_recipe
-    mock_user_client.get_user.return_value = mock_user
+    mock_user_client.get_user.return_value = mock_user_dto
+
+    mock_db_user = Mock()
+    mock_db_user.user_id = recipient_id
+    mock_user_objects.get.return_value = mock_db_user
 
     mock_notification = Mock()
     mock_notification.notification_id = uuid4()
-    mock_notification_service.create_notification.return_value = mock_notification
+    mock_notification_service.create_notification.return_value = (mock_notification, [])
 
-    # Execute
     result = recipe_notification_service.send_recipe_featured_notifications(request)
 
-    # Assert
     assert result.queued_count == 1
 
-    # Verify metadata has None for featured_reason
     call_kwargs = mock_notification_service.create_notification.call_args[1]
-    metadata = call_kwargs["metadata"]
-    assert metadata["featured_reason"] is None
+    notification_data = call_kwargs["notification_data"]
+    assert notification_data["featured_reason"] is None

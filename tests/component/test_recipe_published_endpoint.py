@@ -61,8 +61,10 @@ class TestRecipePublishedEndpoint(TestCase):
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
+    @patch("core.services.recipe_notification_service.User.objects")
     def test_post_with_admin_scope_returns_202(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
@@ -83,9 +85,15 @@ class TestRecipePublishedEndpoint(TestCase):
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
 
+        mock_db_user = Mock()
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -107,8 +115,10 @@ class TestRecipePublishedEndpoint(TestCase):
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
+    @patch("core.services.recipe_notification_service.User.objects")
     def test_post_with_user_scope_and_valid_followers_returns_202(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
@@ -130,9 +140,15 @@ class TestRecipePublishedEndpoint(TestCase):
         mock_user_client.get_user.return_value = self.mock_user
         mock_user_client.validate_follower_relationship.return_value = True
 
+        mock_db_user = Mock()
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -361,8 +377,10 @@ class TestRecipePublishedEndpoint(TestCase):
     @patch("core.services.recipe_notification_service.recipe_management_service_client")
     @patch("core.services.recipe_notification_service.user_client")
     @patch("core.services.recipe_notification_service.notification_service")
+    @patch("core.services.recipe_notification_service.User.objects")
     def test_response_contains_notification_ids(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
@@ -383,9 +401,12 @@ class TestRecipePublishedEndpoint(TestCase):
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
         mock_user_client.get_user.return_value = self.mock_user
 
+        mock_db_user = Mock()
+        mock_user_objects.get.return_value = mock_db_user
+
         # Return different notification IDs for each call
         notification_ids = [uuid4(), uuid4()]
-        notifications = [Mock(notification_id=nid) for nid in notification_ids]
+        notifications = [(Mock(notification_id=nid), []) for nid in notification_ids]
         mock_notification_service.create_notification.side_effect = notifications
 
         # Execute

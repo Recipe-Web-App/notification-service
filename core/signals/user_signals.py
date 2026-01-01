@@ -5,54 +5,40 @@ from django.dispatch import receiver
 
 import structlog
 
+from core.models.user import User
 from core.services.notification_service import notification_service
 
 logger = structlog.get_logger(__name__)
 
 
-@receiver(post_save, sender="core.User")
-def send_welcome_email(
-    _sender: type,
-    instance,
-    created: bool,
-    **_kwargs: dict,
-) -> None:
+@receiver(post_save, sender=User)
+def send_welcome_email(sender, instance, created, **kwargs) -> None:
     """Send welcome email when a new user is created.
 
     This signal handler is called after a User is saved. If the user
     is newly created, it sends a welcome email notification.
 
     Args:
-        sender: The model class (User)
-        instance: The actual User instance being saved
-        created: True if this is a new user, False if updating
-        **kwargs: Additional signal arguments
+        sender: The model class (User).
+        instance: The actual User instance being saved.
+        created: True if this is a new user, False if updating.
+        **kwargs: Additional signal arguments.
     """
+    del sender, kwargs  # Mark as used
     # Only send email for new users
     if not created:
         return
 
     try:
-        # Create welcome notification
+        # Create welcome notification using new two-table design
         notification_service.create_notification(
-            recipient_email=instance.email,
-            subject=f"Welcome to Recipe Web App, {instance.username}!",
-            message=f"""
-            <html>
-            <body>
-                <h1>Welcome {instance.username}!</h1>
-                <p>Thank you for joining Recipe Web App.</p>
-                <p>We're excited to have you as part of our community.</p>
-                <p>Start exploring recipes and sharing your own creations!</p>
-            </body>
-            </html>
-            """,
-            recipient=instance,
-            metadata={
-                "event": "user_created",
-                "user_id": str(instance.user_id),
+            user=instance,
+            notification_category="WELCOME",
+            notification_data={
+                "template_version": "1.0",
                 "username": instance.username,
             },
+            recipient_email=instance.email,
         )
 
         logger.info(

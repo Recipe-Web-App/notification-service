@@ -1,6 +1,7 @@
 """API views for core application."""
 
 from datetime import datetime
+from typing import ClassVar
 from uuid import UUID
 
 import structlog
@@ -17,6 +18,7 @@ from core.schemas.notification import (
     MaintenanceRequest,
     MentionRequest,
     NewFollowerRequest,
+    NotificationDeleteRequest,
     NotificationDetail,
     NotificationStats,
     PasswordChangedRequest,
@@ -44,6 +46,7 @@ from core.services.social_notification_service import (
 from core.services.system_notification_service import (
     system_notification_service,
 )
+from core.services.user_notification_service import user_notification_service
 
 logger = structlog.get_logger(__name__)
 
@@ -1538,11 +1541,42 @@ class NotificationDetailView(APIView):
 class UserNotificationListView(APIView):
     """API endpoint for retrieving the authenticated user's notifications.
 
-    GET: Retrieve paginated list of notifications for the current user
+    GET: Retrieve paginated list of notifications for the current user.
+
+    This endpoint uses the two-table schema where:
+    - Notification: stores user-facing notification data
+    - NotificationStatus: tracks delivery per channel (EMAIL, IN_APP, etc.)
+
+    Title and message are rendered on-the-fly from notification_category
+    and notification_data.
     """
 
     authentication_classes = (OAuth2Authentication,)
     permission_classes = (IsAuthenticated,)
+
+    # Template map for rendering title/message from category + data
+    NOTIFICATION_TEMPLATES: ClassVar[dict[str, dict[str, str]]] = {
+        "RECIPE_PUBLISHED": {
+            "title": "Recipe Published",
+            "message": "{actor_name} published a new recipe: {recipe_title}",
+        },
+        "RECIPE_LIKED": {
+            "title": "Someone liked your recipe",
+            "message": "{actor_name} liked {recipe_title}",
+        },
+        "RECIPE_COMMENTED": {
+            "title": "New comment on your recipe",
+            "message": "{actor_name} commented on {recipe_title}",
+        },
+        "NEW_FOLLOWER": {
+            "title": "New follower",
+            "message": "{actor_name} started following you",
+        },
+        "WELCOME": {
+            "title": "Welcome!",
+            "message": "Welcome to the recipe app",
+        },
+    }
 
     def get(self, request):
         """Retrieve paginated notifications for the authenticated user.
@@ -1554,8 +1588,8 @@ class UserNotificationListView(APIView):
         Query parameters:
         - page: Page number (default: 1)
         - page_size: Items per page (default: 20, max: 100)
-        - status: Filter by status (optional: pending, queued, sent, failed)
-        - notification_type: Filter by type (optional: email)
+        - status: Filter by delivery status (optional: pending, queued, sent, failed)
+        - notification_type: Filter by delivery channel (optional: email)
         - include_message: Include message body (default: false)
 
         Args:
@@ -1621,39 +1655,38 @@ class UserNotificationListView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get notifications (service handles authorization)
+        # Get notifications using updated service
         try:
-            queryset = notification_service.get_my_notifications(
-                status=status_filter,
-                notification_type=notification_type_filter,
-            )
+            queryset = notification_service.get_my_notifications()
+
+            # Apply status filter via NotificationStatus join if requested
+            if status_filter:
+                queryset = queryset.filter(
+                    statuses__status=status_filter.upper()
+                ).distinct()
+
+            # Apply notification_type filter via NotificationStatus join if requested
+            if notification_type_filter:
+                queryset = queryset.filter(
+                    statuses__notification_type=notification_type_filter.upper()
+                ).distinct()
 
             # Apply pagination
             paginator = NotificationPageNumberPagination()
             paginated_queryset = paginator.paginate_queryset(queryset, request)
 
-            """
-            Handle case where paginate_queryset returns None
-            (shouldn't happen with valid requests)
-            """
             if paginated_queryset is None:
                 paginated_queryset = []
 
-            # Serialize notifications
+            # Serialize notifications with rendered title/message
             notifications_data = []
             for notification in paginated_queryset:
-                notification_detail = NotificationDetail.model_validate(notification)
+                notification_dict = self._render_notification(
+                    notification, include_message
+                )
+                notifications_data.append(notification_dict)
 
-                # Exclude message if not requested
-                if include_message:
-                    notifications_data.append(notification_detail.model_dump())
-                else:
-                    notifications_data.append(
-                        notification_detail.model_dump(exclude={"message"})
-                    )
-
-            # Build paginated response using DRF's method
-            # get_paginated_response returns a Response object
+            # Build paginated response
             paginated_response = paginator.get_paginated_response(notifications_data)
 
             logger.info(
@@ -1662,13 +1695,9 @@ class UserNotificationListView(APIView):
                 count=len(notifications_data),
             )
 
-            """
-            get_paginated_response already returns a Response, so we return it directly
-            """
             return paginated_response
 
         except Exception as e:
-            # Log the exception for debugging
             logger.error(
                 "Error retrieving user notifications",
                 error=str(e),
@@ -1676,19 +1705,85 @@ class UserNotificationListView(APIView):
                 user_id=request.user.user_id if request.user else None,
                 exc_info=True,
             )
-            # Let DRF exception handler handle it
-            # (PermissionDenied, etc.)
             raise
+
+    def _render_notification(self, notification, include_message: bool) -> dict:
+        """Render notification to dict with computed title/message.
+
+        Args:
+            notification: Notification model instance.
+            include_message: Whether to include the message field.
+
+        Returns:
+            Dict with notification data including rendered title/message.
+        """
+        template = self.NOTIFICATION_TEMPLATES.get(
+            notification.notification_category,
+            {"title": "Notification", "message": notification.notification_category},
+        )
+
+        data = notification.notification_data or {}
+        try:
+            title = template["title"].format(**data)
+            message = template["message"].format(**data)
+        except KeyError:
+            title = template["title"]
+            message = template["message"]
+
+        result = {
+            "notification_id": str(notification.notification_id),
+            "notification_category": notification.notification_category,
+            "title": title,
+            "is_read": notification.is_read,
+            "created_at": notification.created_at.isoformat(),
+            "notification_data": data,
+        }
+
+        if include_message:
+            result["message"] = message
+
+        return result
 
 
 class UserNotificationsByIdView(APIView):
     """API endpoint for retrieving notifications for a specific user by user_id.
 
-    GET: Retrieve paginated list of notifications for a specified user (admin only)
+    GET: Retrieve paginated list of notifications for a specified user (admin only).
+
+    This endpoint uses the two-table schema where:
+    - Notification: stores user-facing notification data
+    - NotificationStatus: tracks delivery per channel (EMAIL, IN_APP, etc.)
+
+    Title and message are rendered on-the-fly from notification_category
+    and notification_data.
     """
 
     authentication_classes = (OAuth2Authentication,)
     permission_classes = (IsAuthenticated,)
+
+    # Template map for rendering title/message from category + data
+    NOTIFICATION_TEMPLATES: ClassVar[dict[str, dict[str, str]]] = {
+        "RECIPE_PUBLISHED": {
+            "title": "Recipe Published",
+            "message": "{actor_name} published a new recipe: {recipe_title}",
+        },
+        "RECIPE_LIKED": {
+            "title": "Someone liked your recipe",
+            "message": "{actor_name} liked {recipe_title}",
+        },
+        "RECIPE_COMMENTED": {
+            "title": "New comment on your recipe",
+            "message": "{actor_name} commented on {recipe_title}",
+        },
+        "NEW_FOLLOWER": {
+            "title": "New follower",
+            "message": "{actor_name} started following you",
+        },
+        "WELCOME": {
+            "title": "Welcome!",
+            "message": "Welcome to the recipe app",
+        },
+    }
 
     def get(self, request, user_id):
         """Retrieve paginated notifications for a specific user.
@@ -1700,8 +1795,8 @@ class UserNotificationsByIdView(APIView):
         Query parameters:
         - page: Page number (default: 1)
         - page_size: Items per page (default: 20, max: 100)
-        - status: Filter by status (optional: pending, queued, sent, failed)
-        - notification_type: Filter by type (optional: email)
+        - status: Filter by delivery status (optional: pending, queued, sent, failed)
+        - notification_type: Filter by delivery channel (optional: email)
         - include_message: Include message body (default: false)
 
         Args:
@@ -1785,40 +1880,40 @@ class UserNotificationsByIdView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get notifications (service handles user existence check)
+        # Get notifications using updated service
         try:
             queryset = notification_service.get_user_notifications(
                 user_id=user_id_uuid,
-                status=status_filter,
-                notification_type=notification_type_filter,
             )
+
+            # Apply status filter via NotificationStatus join if requested
+            if status_filter:
+                queryset = queryset.filter(
+                    statuses__status=status_filter.upper()
+                ).distinct()
+
+            # Apply notification_type filter via NotificationStatus join if requested
+            if notification_type_filter:
+                queryset = queryset.filter(
+                    statuses__notification_type=notification_type_filter.upper()
+                ).distinct()
 
             # Apply pagination
             paginator = NotificationPageNumberPagination()
             paginated_queryset = paginator.paginate_queryset(queryset, request)
 
-            """
-            Handle case where paginate_queryset returns None
-            (shouldn't happen with valid requests)
-            """
             if paginated_queryset is None:
                 paginated_queryset = []
 
-            # Serialize notifications
+            # Serialize notifications with rendered title/message
             notifications_data = []
             for notification in paginated_queryset:
-                notification_detail = NotificationDetail.model_validate(notification)
+                notification_dict = self._render_notification(
+                    notification, include_message
+                )
+                notifications_data.append(notification_dict)
 
-                # Exclude message if not requested
-                if include_message:
-                    notifications_data.append(notification_detail.model_dump())
-                else:
-                    notifications_data.append(
-                        notification_detail.model_dump(exclude={"message"})
-                    )
-
-            # Build paginated response using DRF's method
-            # get_paginated_response returns a Response object
+            # Build paginated response
             paginated_response = paginator.get_paginated_response(notifications_data)
 
             logger.info(
@@ -1828,13 +1923,9 @@ class UserNotificationsByIdView(APIView):
                 count=len(notifications_data),
             )
 
-            """
-            get_paginated_response already returns a Response, so we return it directly
-            """
             return paginated_response
 
         except Exception as e:
-            # Log the exception for debugging
             logger.error(
                 "Error retrieving user notifications by ID",
                 error=str(e),
@@ -1843,9 +1934,44 @@ class UserNotificationsByIdView(APIView):
                 requester_user_id=request.user.user_id if request.user else None,
                 exc_info=True,
             )
-            # Let DRF exception handler handle it
-            # (UserNotFoundError will be caught by global exception handler)
             raise
+
+    def _render_notification(self, notification, include_message: bool) -> dict:
+        """Render notification to dict with computed title/message.
+
+        Args:
+            notification: Notification model instance.
+            include_message: Whether to include the message field.
+
+        Returns:
+            Dict with notification data including rendered title/message.
+        """
+        template = self.NOTIFICATION_TEMPLATES.get(
+            notification.notification_category,
+            {"title": "Notification", "message": notification.notification_category},
+        )
+
+        data = notification.notification_data or {}
+        try:
+            title = template["title"].format(**data)
+            message = template["message"].format(**data)
+        except KeyError:
+            title = template["title"]
+            message = template["message"]
+
+        result = {
+            "notification_id": str(notification.notification_id),
+            "notification_category": notification.notification_category,
+            "title": title,
+            "is_read": notification.is_read,
+            "created_at": notification.created_at.isoformat(),
+            "notification_data": data,
+        }
+
+        if include_message:
+            result["message"] = message
+
+        return result
 
 
 class NotificationStatsView(APIView):
@@ -2347,3 +2473,222 @@ class TemplateListView(APIView):
             )
             # Let DRF exception handler handle it
             raise
+
+
+class UserNotificationsView(APIView):
+    """View for listing and bulk deleting user notifications.
+
+    Handles:
+        GET /notifications - List user's notifications with pagination
+        DELETE /notifications - Bulk soft delete notifications
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        """Get authenticated user's notifications.
+
+        Query Parameters:
+            limit: Page size (1-100, default 20)
+            offset: Items to skip (default 0)
+            countOnly: If true, return only count (default false)
+
+        Returns:
+            200: UserNotificationListResponse or UserNotificationCountResponse
+        """
+        logger.info(
+            "User notifications list request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        # Parse query params
+        count_only = request.query_params.get("countOnly", "false").lower() == "true"
+        try:
+            limit = min(int(request.query_params.get("limit", "20")), 100)
+            offset = int(request.query_params.get("offset", "0"))
+        except ValueError:
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid limit or offset parameter",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Call service
+        result = user_notification_service.get_user_notifications(
+            count_only=count_only,
+            limit=limit,
+            offset=offset,
+        )
+
+        logger.info(
+            "User notifications retrieved successfully",
+            user_id=request.user.user_id if request.user else None,
+            count_only=count_only,
+        )
+
+        return Response(result.model_dump(by_alias=True), status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        """Bulk delete notifications.
+
+        Request Body:
+            notificationIds: list[UUID] (1-100 items)
+
+        Returns:
+            200: All deleted successfully
+            206: Partial content (some deleted)
+            400: Validation error
+        """
+        logger.info(
+            "Bulk delete notifications request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        try:
+            delete_request = NotificationDeleteRequest(**request.data)
+        except ValidationError as e:
+            logger.warning(
+                "Invalid bulk delete request",
+                validation_errors=e.errors(),
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid request",
+                    "errors": e.errors(),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        deleted_ids = user_notification_service.bulk_delete(
+            delete_request.notification_ids
+        )
+
+        # Convert UUIDs to strings for JSON response
+        deleted_ids_str = [str(uid) for uid in deleted_ids]
+
+        # Determine status code based on partial vs full deletion
+        if len(deleted_ids) == len(delete_request.notification_ids):
+            logger.info(
+                "All notifications deleted successfully",
+                deleted_count=len(deleted_ids),
+            )
+            return Response(
+                {
+                    "message": "Notifications deleted successfully",
+                    "deletedNotificationIds": deleted_ids_str,
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            logger.info(
+                "Some notifications deleted",
+                requested_count=len(delete_request.notification_ids),
+                deleted_count=len(deleted_ids),
+            )
+            return Response(
+                {
+                    "message": "Some notifications deleted successfully",
+                    "deletedNotificationIds": deleted_ids_str,
+                },
+                status=status.HTTP_206_PARTIAL_CONTENT,
+            )
+
+
+class NotificationMarkReadView(APIView):
+    """View for marking a single notification as read.
+
+    Handles:
+        PUT /notifications/{notificationId}/read
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def put(self, request, notification_id: str):
+        """Mark a notification as read.
+
+        Args:
+            request: HTTP request object.
+            notification_id: UUID of the notification.
+
+        Returns:
+            200: Success message
+            400: Invalid UUID format
+            404: Notification not found
+        """
+        logger.info(
+            "Mark notification as read request received",
+            user_id=request.user.user_id if request.user else None,
+            notification_id=notification_id,
+        )
+
+        try:
+            notification_uuid = UUID(notification_id)
+        except ValueError:
+            logger.warning(
+                "Invalid notification ID format",
+                notification_id=notification_id,
+            )
+            return Response(
+                {
+                    "error": "bad_request",
+                    "message": "Invalid notification ID format",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_notification_service.mark_as_read(notification_uuid)
+
+        logger.info(
+            "Notification marked as read successfully",
+            notification_id=notification_id,
+        )
+
+        return Response(
+            {"message": "Notification marked as read successfully"},
+            status=status.HTTP_200_OK,
+        )
+
+
+class NotificationMarkAllReadView(APIView):
+    """View for marking all notifications as read.
+
+    Handles:
+        PUT /notifications/read-all
+    """
+
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def put(self, request):
+        """Mark all user's notifications as read.
+
+        Returns:
+            200: Success with list of affected IDs
+        """
+        logger.info(
+            "Mark all notifications as read request received",
+            user_id=request.user.user_id if request.user else None,
+        )
+
+        read_ids = user_notification_service.mark_all_as_read()
+
+        # Convert UUIDs to strings for JSON response
+        read_ids_str = [str(uid) for uid in read_ids]
+
+        logger.info(
+            "All notifications marked as read successfully",
+            marked_count=len(read_ids),
+        )
+
+        return Response(
+            {
+                "message": "All notifications marked as read successfully",
+                "readNotificationIds": read_ids_str,
+            },
+            status=status.HTTP_200_OK,
+        )

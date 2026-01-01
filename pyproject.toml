@@ -158,15 +158,17 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.per-file-ignores]
-# Tests can use magic values, assertions, etc.
-"**/tests/**/*.py" = ["PLR2004", "S101", "ARG", "D"]
-"**/test_*.py" = ["PLR2004", "S101", "ARG", "D"]
+# Tests can use magic values, assertions, imports after setup, etc.
+"**/tests/**/*.py" = ["PLR2004", "S101", "ARG", "D", "E402", "PLC0415"]
+"**/test_*.py" = ["PLR2004", "S101", "ARG", "D", "E402", "PLC0415"]
 # Migrations can ignore all linting
 "**/migrations/**/*.py" = ["ALL"]
 # Settings can have many variables
 "**/settings.py" = ["ERA001"]
 # Test settings inherits from base settings via star import (Django pattern)
 "**/settings_test.py" = ["F403", "F401"]
+# Models are unmanaged and must match existing DB schema (nullable string fields)
+"**/models/**/*.py" = ["DJ001"]
 
 [tool.ruff.lint.pydocstyle]
 # Use Google-style docstrings

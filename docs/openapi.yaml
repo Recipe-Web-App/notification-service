@@ -2,16 +2,27 @@ openapi: 3.0.3
 info:
   title: Notification Service API
   description: |
-    Notification service for the Recipe Web App. Handles email notifications with async queue processing.
+    Notification service for the Recipe Web App. Handles multi-channel notifications (EMAIL, IN_APP, PUSH, SMS) with async queue processing.
 
     ## Features
-    - Template-based email notifications (recipe events, social events, system notifications)
+    - Template-based notifications (recipe events, social events, system notifications)
+    - Multi-channel delivery tracking (EMAIL, IN_APP, PUSH, SMS)
     - Async notification queue with Redis/RQ
     - OAuth2 authentication with scope-based authorization
     - Batch notification support (up to 100 recipients per request)
     - Follower-based authorization for user-to-user notifications
-    - Status polling for notification delivery tracking
+    - Status polling for per-channel delivery tracking
     - Rate limiting (100 requests/minute per user)
+    - User notification management (read/unread, soft delete)
+
+    ## Notification Architecture
+    The service uses a normalized two-table design:
+    - **notifications** - Core notification data (category, user, read/deleted state)
+    - **notification_statuses** - Per-channel delivery tracking (EMAIL sent, PUSH failed, etc.)
+
+    **Computed Fields:** Title and message are rendered on-the-fly from `notificationCategory` + `notificationData`.
+    They are NOT stored in the database. Each notification stores a `templateVersion` in `notificationData`
+    for historical rendering accuracy.
 
     ## Authorization Model
     - **notification:user** - Send notifications to followers only, read own notifications
@@ -835,13 +846,17 @@ paths:
     get:
       tags:
         - Notification Management
-      summary: Get notification details and status
+      summary: Get notification details and delivery status
       description: |
-        Retrieve notification details including delivery status.
+        Retrieve notification details including per-channel delivery statuses.
         Users can only access their own notifications unless they have **notification:admin** scope.
 
-        **Message Field**: By default, the `message` field is excluded from the response to reduce payload size.
-        Use the `include_message` query parameter to include the full message body.
+        **Computed Fields**: The `title` and `message` fields are computed on-the-fly from
+        `notification_category` + `notification_data`. They are not stored in the database.
+
+        **Delivery Statuses**: The `deliveryStatuses` array shows the delivery status for each
+        channel (EMAIL, IN_APP, PUSH, SMS). A single notification can have multiple delivery
+        statuses if it was sent via multiple channels.
 
         Use this endpoint to poll for notification delivery status after queuing.
       operationId: getNotification
@@ -855,13 +870,6 @@ paths:
             type: string
             format: uuid
           description: Notification UUID
-        - name: include_message
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
-          description: Include the full message body in the response (default is false to reduce payload size)
       responses:
         '200':
           description: Notification details retrieved successfully
@@ -870,21 +878,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotificationDetail'
               example:
-                notification_id: 770e8400-e29b-41d4-a716-446655440111
-                recipient_id: 550e8400-e29b-41d4-a716-446655440001
-                recipient_email: john.doe@example.com
-                subject: "New Recipe: Grandma's Chocolate Chip Cookies"
-                notification_type: email
-                status: sent
-                created_at: "2025-10-28T14:30:00Z"
-                queued_at: "2025-10-28T14:30:01Z"
-                sent_at: "2025-10-28T14:30:15Z"
-                retry_count: 0
-                max_retries: 3
-                error_message: ""
-                metadata:
-                  template_type: recipe_published
-                  recipe_id: 660e8400-e29b-41d4-a716-446655440099
+                notificationId: 770e8400-e29b-41d4-a716-446655440111
+                userId: 550e8400-e29b-41d4-a716-446655440001
+                notificationCategory: RECIPE_PUBLISHED
+                isRead: false
+                isDeleted: false
+                createdAt: "2025-10-28T14:30:00Z"
+                updatedAt: "2025-10-28T14:30:15Z"
+                notificationData:
+                  templateVersion: "1.0"
+                  recipeId: 660e8400-e29b-41d4-a716-446655440099
+                  recipeTitle: "Grandma's Chocolate Chip Cookies"
+                  authorName: "Chef John"
+                title: "New Recipe: Grandma's Chocolate Chip Cookies"
+                message: "Chef John published a new recipe: Grandma's Chocolate Chip Cookies"
+                deliveryStatuses:
+                  - notificationType: EMAIL
+                    status: SENT
+                    retryCount: 0
+                    recipientEmail: john.doe@example.com
+                    createdAt: "2025-10-28T14:30:00Z"
+                    updatedAt: "2025-10-28T14:30:15Z"
+                    queuedAt: "2025-10-28T14:30:01Z"
+                    sentAt: "2025-10-28T14:30:15Z"
+                  - notificationType: IN_APP
+                    status: SENT
+                    createdAt: "2025-10-28T14:30:00Z"
+                    updatedAt: "2025-10-28T14:30:00Z"
+                    sentAt: "2025-10-28T14:30:00Z"
         '400':
           description: Invalid notification ID format
           content:
@@ -1043,90 +1064,89 @@ paths:
         - User Notifications
       summary: Get current user's notifications
       description: |
-        Retrieve paginated list of notifications for the authenticated user.
-        Returns notifications ordered by creation date (newest first).
+        Retrieve paginated list of in-app notifications for the authenticated user.
+        Returns notifications ordered by creation date (newest first), excluding soft-deleted notifications.
 
-        **Message Field**: By default, the `message` field is excluded from the response to reduce payload size.
-        Use the `include_message` query parameter to include the full message body.
+        **Computed Fields**: The `title` and `message` fields are computed on-the-fly from
+        `notification_category` + `notification_data`. They are not stored in the database.
+
+        **Count Only Mode**: Use `countOnly=true` to return only the total count without notification data.
+        This is useful for displaying unread notification badges.
       operationId: getMyNotifications
       security:
         - OAuth2: ["notification:user", "notification:admin"]
       parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: Page number
-        - name: page_size
+        - name: limit
           in: query
           schema:
             type: integer
             minimum: 1
             maximum: 100
             default: 20
-          description: Number of items per page
-        - name: status
+          description: Maximum number of notifications to return
+        - name: offset
           in: query
           schema:
-            type: string
-            enum: [pending, queued, sent, failed]
-          description: Filter by notification status
-        - name: notification_type
-          in: query
-          schema:
-            type: string
-            enum: [email]
-          description: Filter by notification type
-        - name: include_message
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of notifications to skip
+        - name: countOnly
           in: query
           schema:
             type: boolean
             default: false
-          description: Include the full message body in the response (default is false to reduce payload size)
+          description: If true, return only the total count (for unread badges)
       responses:
         '200':
           description: User notifications retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotificationListResponse'
-              example:
-                results:
-                  - notification_id: 770e8400-e29b-41d4-a716-446655440111
-                    recipient_id: 550e8400-e29b-41d4-a716-446655440001
-                    recipient_email: john.doe@example.com
-                    subject: "New Recipe: Grandma's Chocolate Chip Cookies"
-                    notification_type: email
-                    status: sent
-                    created_at: "2025-10-28T14:30:00Z"
-                    queued_at: "2025-10-28T14:30:01Z"
-                    sent_at: "2025-10-28T14:30:15Z"
-                    retry_count: 0
-                    max_retries: 3
-                    error_message: ""
-                    metadata:
-                      template_type: recipe_published
-                      recipe_id: 660e8400-e29b-41d4-a716-446655440099
-                  - notification_id: 770e8400-e29b-41d4-a716-446655440112
-                    recipient_id: 550e8400-e29b-41d4-a716-446655440001
-                    recipient_email: john.doe@example.com
-                    subject: "Someone liked your recipe!"
-                    notification_type: email
-                    status: sent
-                    created_at: "2025-10-27T10:15:00Z"
-                    queued_at: "2025-10-27T10:15:01Z"
-                    sent_at: "2025-10-27T10:15:10Z"
-                    retry_count: 0
-                    max_retries: 3
-                    error_message: ""
-                    metadata:
-                      template_type: recipe_liked
-                      recipe_id: 660e8400-e29b-41d4-a716-446655440099
-                count: 42
-                next: "http://localhost:8000/api/v1/notification/users/me/notifications?page=2"
-                previous: null
+                oneOf:
+                  - $ref: '#/components/schemas/UserNotificationListResponse'
+                  - $ref: '#/components/schemas/UserNotificationCountResponse'
+              examples:
+                list_response:
+                  summary: Paginated notification list
+                  value:
+                    notifications:
+                      - notificationId: 770e8400-e29b-41d4-a716-446655440111
+                        userId: 550e8400-e29b-41d4-a716-446655440001
+                        notificationCategory: RECIPE_LIKED
+                        isRead: false
+                        isDeleted: false
+                        createdAt: "2025-01-15T10:30:00Z"
+                        updatedAt: "2025-01-15T10:30:00Z"
+                        notificationData:
+                          templateVersion: "1.0"
+                          recipeId: 789
+                          recipeTitle: "Pasta Carbonara"
+                          actorId: "user-999"
+                          actorName: "John"
+                        title: "Someone liked your recipe"
+                        message: "John liked Pasta Carbonara"
+                      - notificationId: 770e8400-e29b-41d4-a716-446655440112
+                        userId: 550e8400-e29b-41d4-a716-446655440001
+                        notificationCategory: NEW_FOLLOWER
+                        isRead: true
+                        isDeleted: false
+                        createdAt: "2025-01-14T09:15:00Z"
+                        updatedAt: "2025-01-14T10:00:00Z"
+                        notificationData:
+                          templateVersion: "1.0"
+                          followerId: "user-888"
+                          followerName: "Jane Smith"
+                          followerUsername: "janesmith"
+                        title: "New follower"
+                        message: "Jane Smith started following you"
+                    totalCount: 42
+                    limit: 20
+                    offset: 0
+                count_only_response:
+                  summary: Count only response
+                  value:
+                    totalCount: 42
         '400':
           description: Invalid query parameters
           content:
@@ -1135,8 +1155,160 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: "bad_request"
-                message: "Invalid status filter"
-                detail: "Status must be one of: pending, queued, sent, failed"
+                message: "Invalid query parameters"
+                detail: "limit must be between 1 and 100"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - User Notifications
+      summary: Bulk delete notifications
+      description: |
+        Soft delete multiple notifications for the authenticated user.
+        Sets `is_deleted=true` on the specified notifications.
+
+        **Ownership**: Users can only delete their own notifications.
+
+        **Partial Success**: Returns 206 if some notifications could not be deleted
+        (e.g., notification doesn't exist or belongs to another user).
+      operationId: bulkDeleteMyNotifications
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationDeleteRequest'
+            example:
+              notificationIds:
+                - 770e8400-e29b-41d4-a716-446655440111
+                - 770e8400-e29b-41d4-a716-446655440112
+                - 770e8400-e29b-41d4-a716-446655440113
+      responses:
+        '200':
+          description: All notifications deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDeleteResponse'
+              example:
+                message: "Notifications deleted successfully"
+                deletedNotificationIds:
+                  - 770e8400-e29b-41d4-a716-446655440111
+                  - 770e8400-e29b-41d4-a716-446655440112
+                  - 770e8400-e29b-41d4-a716-446655440113
+        '206':
+          description: Some notifications deleted successfully (partial success)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDeleteResponse'
+              example:
+                message: "Some notifications deleted successfully"
+                deletedNotificationIds:
+                  - 770e8400-e29b-41d4-a716-446655440111
+                  - 770e8400-e29b-41d4-a716-446655440112
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/me/notifications/{notificationId}/read:
+    put:
+      tags:
+        - User Notifications
+      summary: Mark notification as read
+      description: |
+        Mark a single notification as read for the authenticated user.
+        Sets `is_read=true` on the notification.
+
+        **Ownership**: Users can only mark their own notifications as read.
+      operationId: markNotificationAsRead
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Notification UUID
+      responses:
+        '200':
+          description: Notification marked as read successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Notification marked as read successfully"
+        '400':
+          description: Invalid notification ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "bad_request"
+                message: "Invalid notification ID format"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/me/notifications/read-all:
+    put:
+      tags:
+        - User Notifications
+      summary: Mark all notifications as read
+      description: |
+        Mark all unread notifications as read for the authenticated user.
+        Sets `is_read=true` on all notifications where `is_read=false` and `is_deleted=false`.
+
+        Returns the list of notification IDs that were marked as read.
+      operationId: markAllNotificationsAsRead
+      security:
+        - OAuth2: ["notification:user", "notification:admin"]
+      responses:
+        '200':
+          description: All notifications marked as read successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - readNotificationIds
+                properties:
+                  message:
+                    type: string
+                  readNotificationIds:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+              example:
+                message: "All notifications marked as read successfully"
+                readNotificationIds:
+                  - 770e8400-e29b-41d4-a716-446655440111
+                  - 770e8400-e29b-41d4-a716-446655440112
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1148,10 +1320,15 @@ paths:
     get:
       tags:
         - User Notifications
-      summary: Get notifications for a specific user
+      summary: Get notifications for a specific user (admin)
       description: |
-        Retrieve paginated list of notifications for a specific user.
+        Retrieve paginated list of in-app notifications for a specific user.
         Only available to admin users.
+
+        **Computed Fields**: The `title` and `message` fields are computed on-the-fly from
+        `notification_category` + `notification_data`. They are not stored in the database.
+
+        **Count Only Mode**: Use `countOnly=true` to return only the total count.
       operationId: getUserNotifications
       security:
         - OAuth2: ["notification:admin"]
@@ -1163,47 +1340,36 @@ paths:
             type: string
             format: uuid
           description: User UUID
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-          description: Page number
-        - name: page_size
+        - name: limit
           in: query
           schema:
             type: integer
             minimum: 1
             maximum: 100
             default: 20
-          description: Number of items per page
-        - name: status
+          description: Maximum number of notifications to return
+        - name: offset
           in: query
           schema:
-            type: string
-            enum: [pending, queued, sent, failed]
-          description: Filter by notification status
-        - name: notification_type
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of notifications to skip
+        - name: countOnly
           in: query
-          schema:
-            type: string
-            enum: [email]
-          description: Filter by notification type
-        - name: include_message
-          in: query
-          required: false
           schema:
             type: boolean
             default: false
-          description: Include the full message body in the response (default is false to reduce payload size)
+          description: If true, return only the total count
       responses:
         '200':
           description: User notifications retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotificationListResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/UserNotificationListResponse'
+                  - $ref: '#/components/schemas/UserNotificationCountResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1252,12 +1418,16 @@ paths:
               example:
                 total_notifications: 15234
                 status_breakdown:
-                  pending: 12
-                  queued: 45
-                  sent: 14987
-                  failed: 190
+                  PENDING: 12
+                  QUEUED: 45
+                  SENT: 14987
+                  FAILED: 190
+                  ABORTED: 23
                 type_breakdown:
-                  email: 15234
+                  EMAIL: 10234
+                  IN_APP: 15234
+                  PUSH: 8500
+                  SMS: 0
                 success_rate: 0.9876
                 average_send_time_seconds: 14.5
                 failed_notifications:
@@ -1891,6 +2061,473 @@ components:
           maxLength: 1000
           description: Description of the maintenance work and expected impact
 
+    # User Notification Request Schemas
+    NotificationDeleteRequest:
+      type: object
+      required:
+        - notificationIds
+      properties:
+        notificationIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: List of notification IDs to delete (soft delete)
+
+    # Enum Schemas
+    NotificationCategory:
+      type: string
+      description: Notification category for template identification
+      enum:
+        # Recipe events
+        - RECIPE_PUBLISHED
+        - RECIPE_LIKED
+        - RECIPE_COMMENTED
+        - RECIPE_SHARED
+        - RECIPE_COLLECTED
+        - RECIPE_RATED
+        - RECIPE_FEATURED
+        - RECIPE_TRENDING
+        # Social events
+        - NEW_FOLLOWER
+        - MENTION
+        - COLLECTION_INVITE
+        # System events
+        - WELCOME
+        - PASSWORD_RESET
+        - PASSWORD_CHANGED
+        - EMAIL_CHANGED
+        - MAINTENANCE
+        - SYSTEM_ALERT
+
+    NotificationType:
+      type: string
+      description: Notification delivery channel type
+      enum:
+        - EMAIL
+        - IN_APP
+        - PUSH
+        - SMS
+
+    NotificationStatus:
+      type: string
+      description: Notification delivery status
+      enum:
+        - PENDING
+        - QUEUED
+        - SENT
+        - FAILED
+        - ABORTED
+
+    # Polymorphic NotificationData Schemas
+    # These schemas define the structure of notificationData based on notificationCategory
+    # Grouped by common field patterns to minimize duplication
+
+    RecipeActorNotificationData:
+      type: object
+      description: |
+        NotificationData for notifications where someone did something to a recipe.
+        Used by: RECIPE_LIKED, RECIPE_COMMENTED, RECIPE_SHARED, RECIPE_COLLECTED, RECIPE_RATED
+      required:
+        - templateVersion
+        - recipeId
+        - recipeTitle
+      properties:
+        templateVersion:
+          type: string
+          description: Template version for historical rendering accuracy
+          example: "1.0"
+        recipeId:
+          type: integer
+          format: int64
+          description: ID of the recipe
+        recipeTitle:
+          type: string
+          description: Title of the recipe
+        actorId:
+          type: string
+          format: uuid
+          description: ID of user who performed the action
+        actorName:
+          type: string
+          description: Display name of user who performed the action
+        # RECIPE_COMMENTED specific
+        commentId:
+          type: integer
+          format: int64
+          description: For RECIPE_COMMENTED - ID of the comment
+        commentPreview:
+          type: string
+          description: For RECIPE_COMMENTED - Preview of the comment text
+        # RECIPE_COLLECTED specific
+        collectionId:
+          type: integer
+          format: int64
+          description: For RECIPE_COLLECTED - ID of the collection
+        collectionName:
+          type: string
+          description: For RECIPE_COLLECTED - Name of the collection
+        # RECIPE_RATED specific
+        rating:
+          type: number
+          description: For RECIPE_RATED - Rating value given
+        # RECIPE_SHARED specific
+        shareMessage:
+          type: string
+          nullable: true
+          description: For RECIPE_SHARED - Optional message from the sharer
+
+    RecipeSystemNotificationData:
+      type: object
+      description: |
+        NotificationData for system notifications about a recipe (no external actor).
+        Used by: RECIPE_PUBLISHED, RECIPE_FEATURED, RECIPE_TRENDING
+      required:
+        - templateVersion
+        - recipeId
+        - recipeTitle
+      properties:
+        templateVersion:
+          type: string
+          description: Template version for historical rendering accuracy
+          example: "1.0"
+        recipeId:
+          type: integer
+          format: int64
+          description: ID of the recipe
+        recipeTitle:
+          type: string
+          description: Title of the recipe
+        # RECIPE_PUBLISHED specific
+        authorId:
+          type: string
+          format: uuid
+          description: For RECIPE_PUBLISHED - ID of the recipe author
+        authorName:
+          type: string
+          description: For RECIPE_PUBLISHED - Name of the recipe author
+        # RECIPE_FEATURED specific
+        featuredReason:
+          type: string
+          nullable: true
+          description: For RECIPE_FEATURED - Reason the recipe was featured
+        # RECIPE_TRENDING specific
+        trendingMetrics:
+          type: string
+          nullable: true
+          description: For RECIPE_TRENDING - Trending metrics summary
+
+    SocialNotificationData:
+      type: object
+      description: |
+        NotificationData for social interactions between users.
+        Used by: NEW_FOLLOWER, MENTION, COLLECTION_INVITE
+      required:
+        - templateVersion
+      properties:
+        templateVersion:
+          type: string
+          description: Template version for historical rendering accuracy
+          example: "1.0"
+        # NEW_FOLLOWER specific
+        followerId:
+          type: string
+          format: uuid
+          description: For NEW_FOLLOWER - ID of the new follower
+        followerName:
+          type: string
+          description: For NEW_FOLLOWER - Display name of the new follower
+        followerUsername:
+          type: string
+          description: For NEW_FOLLOWER - Username of the new follower
+        # MENTION specific
+        commentId:
+          type: integer
+          format: int64
+          description: For MENTION - ID of the comment containing the mention
+        recipeId:
+          type: integer
+          format: int64
+          description: For MENTION - ID of the recipe the comment is on
+        recipeTitle:
+          type: string
+          description: For MENTION - Title of the recipe
+        commenterId:
+          type: string
+          format: uuid
+          description: For MENTION - ID of the user who mentioned
+        commenterName:
+          type: string
+          description: For MENTION - Name of the user who mentioned
+        commentPreview:
+          type: string
+          description: For MENTION - Preview of the comment text
+        # COLLECTION_INVITE specific
+        collectionId:
+          type: integer
+          format: int64
+          description: For COLLECTION_INVITE - ID of the collection
+        collectionName:
+          type: string
+          description: For COLLECTION_INVITE - Name of the collection
+        inviterId:
+          type: string
+          format: uuid
+          description: For COLLECTION_INVITE - ID of the user who sent the invite
+        inviterName:
+          type: string
+          description: For COLLECTION_INVITE - Name of the user who sent the invite
+
+    SystemNotificationData:
+      type: object
+      description: |
+        NotificationData for system-generated notifications (auth, maintenance, alerts).
+        Used by: WELCOME, PASSWORD_RESET, PASSWORD_CHANGED, EMAIL_CHANGED, MAINTENANCE, SYSTEM_ALERT
+      required:
+        - templateVersion
+      properties:
+        templateVersion:
+          type: string
+          description: Template version for historical rendering accuracy
+          example: "1.0"
+        # WELCOME specific
+        userId:
+          type: string
+          format: uuid
+          description: For WELCOME - ID of the new user
+        username:
+          type: string
+          description: For WELCOME - Username of the new user
+        fullName:
+          type: string
+          nullable: true
+          description: For WELCOME - Full name of the new user
+        # PASSWORD_RESET specific
+        resetToken:
+          type: string
+          description: For PASSWORD_RESET - Password reset token
+        expiryHours:
+          type: integer
+          description: For PASSWORD_RESET - Hours until token expires
+        resetUrl:
+          type: string
+          description: For PASSWORD_RESET - Full URL for password reset
+        # PASSWORD_CHANGED, EMAIL_CHANGED common
+        timestamp:
+          type: string
+          format: date-time
+          description: For PASSWORD_CHANGED, EMAIL_CHANGED - When the change occurred
+        # EMAIL_CHANGED specific
+        oldEmail:
+          type: string
+          format: email
+          description: For EMAIL_CHANGED - Previous email address
+        newEmail:
+          type: string
+          format: email
+          description: For EMAIL_CHANGED - New email address
+        # MAINTENANCE specific
+        maintenanceStart:
+          type: string
+          format: date-time
+          description: For MAINTENANCE - Scheduled start time
+        maintenanceEnd:
+          type: string
+          format: date-time
+          description: For MAINTENANCE - Scheduled end time
+        description:
+          type: string
+          description: For MAINTENANCE - Description of the maintenance
+        # SYSTEM_ALERT specific
+        alertType:
+          type: string
+          description: For SYSTEM_ALERT - Type of alert
+        alertLevel:
+          type: string
+          enum: [info, warning, critical]
+          description: For SYSTEM_ALERT - Severity level
+        alertTitle:
+          type: string
+          description: For SYSTEM_ALERT - Alert title
+        alertMessage:
+          type: string
+          description: For SYSTEM_ALERT - Alert message
+
+    # User Notification Response Schemas
+    UserNotification:
+      type: object
+      description: User-facing notification with computed title/message fields
+      required:
+        - notificationId
+        - userId
+        - notificationCategory
+        - isRead
+        - isDeleted
+        - createdAt
+        - updatedAt
+        - notificationData
+        - title
+        - message
+      properties:
+        notificationId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        notificationCategory:
+          $ref: '#/components/schemas/NotificationCategory'
+        isRead:
+          type: boolean
+          description: Whether the notification has been read
+        isDeleted:
+          type: boolean
+          description: Whether the notification has been soft deleted
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        notificationData:
+          description: |
+            Template parameters including templateVersion for historical rendering.
+            The schema varies based on notificationCategory:
+            - RECIPE_LIKED, RECIPE_COMMENTED, RECIPE_SHARED, RECIPE_COLLECTED, RECIPE_RATED → RecipeActorNotificationData
+            - RECIPE_PUBLISHED, RECIPE_FEATURED, RECIPE_TRENDING → RecipeSystemNotificationData
+            - NEW_FOLLOWER, MENTION, COLLECTION_INVITE → SocialNotificationData
+            - WELCOME, PASSWORD_RESET, PASSWORD_CHANGED, EMAIL_CHANGED, MAINTENANCE, SYSTEM_ALERT → SystemNotificationData
+          oneOf:
+            - $ref: '#/components/schemas/RecipeActorNotificationData'
+            - $ref: '#/components/schemas/RecipeSystemNotificationData'
+            - $ref: '#/components/schemas/SocialNotificationData'
+            - $ref: '#/components/schemas/SystemNotificationData'
+          discriminator:
+            propertyName: notificationCategory
+            mapping:
+              RECIPE_LIKED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_COMMENTED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_SHARED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_COLLECTED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_RATED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_PUBLISHED: '#/components/schemas/RecipeSystemNotificationData'
+              RECIPE_FEATURED: '#/components/schemas/RecipeSystemNotificationData'
+              RECIPE_TRENDING: '#/components/schemas/RecipeSystemNotificationData'
+              NEW_FOLLOWER: '#/components/schemas/SocialNotificationData'
+              MENTION: '#/components/schemas/SocialNotificationData'
+              COLLECTION_INVITE: '#/components/schemas/SocialNotificationData'
+              WELCOME: '#/components/schemas/SystemNotificationData'
+              PASSWORD_RESET: '#/components/schemas/SystemNotificationData'
+              PASSWORD_CHANGED: '#/components/schemas/SystemNotificationData'
+              EMAIL_CHANGED: '#/components/schemas/SystemNotificationData'
+              MAINTENANCE: '#/components/schemas/SystemNotificationData'
+              SYSTEM_ALERT: '#/components/schemas/SystemNotificationData'
+        title:
+          type: string
+          description: Computed from notificationCategory + notificationData (not stored in DB)
+        message:
+          type: string
+          description: Computed from notificationCategory + notificationData (not stored in DB)
+
+    UserNotificationListResponse:
+      type: object
+      description: Paginated list of user notifications
+      required:
+        - notifications
+        - totalCount
+        - limit
+        - offset
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserNotification'
+        totalCount:
+          type: integer
+          description: Total number of notifications matching query
+        limit:
+          type: integer
+          description: Maximum number of notifications returned
+        offset:
+          type: integer
+          description: Number of notifications skipped
+
+    UserNotificationCountResponse:
+      type: object
+      description: Count-only response for notifications (used with countOnly=true)
+      required:
+        - totalCount
+      properties:
+        totalCount:
+          type: integer
+          description: Total number of notifications matching query
+
+    NotificationDeleteResponse:
+      type: object
+      description: Response for bulk delete operation
+      required:
+        - message
+        - deletedNotificationIds
+      properties:
+        message:
+          type: string
+        deletedNotificationIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: List of notification IDs that were successfully deleted
+
+    NotificationDeliveryStatus:
+      type: object
+      description: Delivery status for a specific notification channel
+      required:
+        - notificationType
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        notificationType:
+          $ref: '#/components/schemas/NotificationType'
+        status:
+          $ref: '#/components/schemas/NotificationStatus'
+        retryCount:
+          type: integer
+          nullable: true
+          description: Number of retry attempts (null if no retries attempted)
+        errorMessage:
+          type: string
+          nullable: true
+          description: Error message if status is FAILED
+        recipientEmail:
+          type: string
+          format: email
+          nullable: true
+          description: Recipient email address (for EMAIL channel only)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        queuedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the notification was queued for delivery
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the notification was successfully sent
+        failedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the notification permanently failed
+
     # Response Schemas
     BatchNotificationResponse:
       type: object
@@ -1924,68 +2561,87 @@ components:
 
     NotificationDetail:
       type: object
+      description: |
+        Detailed notification information including delivery statuses per channel.
+        The title and message fields are computed on-the-fly from notificationCategory + notificationData.
       required:
-        - notification_id
-        - recipient_email
-        - subject
-        - notification_type
-        - status
-        - created_at
-        - retry_count
-        - max_retries
+        - notificationId
+        - userId
+        - notificationCategory
+        - isRead
+        - isDeleted
+        - createdAt
+        - updatedAt
+        - notificationData
+        - title
+        - message
+        - deliveryStatuses
       properties:
-        notification_id:
+        notificationId:
           type: string
           format: uuid
-        recipient_id:
+        userId:
           type: string
           format: uuid
-          nullable: true
-          description: Recipient user ID (null for email-only notifications)
-        recipient_email:
+          description: Owner of this notification
+        notificationCategory:
+          $ref: '#/components/schemas/NotificationCategory'
+        isRead:
+          type: boolean
+          description: Whether the notification has been read (in-app state)
+        isDeleted:
+          type: boolean
+          description: Whether the notification has been soft deleted
+        createdAt:
           type: string
-          format: email
-        subject:
+          format: date-time
+        updatedAt:
           type: string
+          format: date-time
+        notificationData:
+          description: |
+            Template parameters including templateVersion for historical rendering.
+            The schema varies based on notificationCategory:
+            - RECIPE_LIKED, RECIPE_COMMENTED, RECIPE_SHARED, RECIPE_COLLECTED, RECIPE_RATED → RecipeActorNotificationData
+            - RECIPE_PUBLISHED, RECIPE_FEATURED, RECIPE_TRENDING → RecipeSystemNotificationData
+            - NEW_FOLLOWER, MENTION, COLLECTION_INVITE → SocialNotificationData
+            - WELCOME, PASSWORD_RESET, PASSWORD_CHANGED, EMAIL_CHANGED, MAINTENANCE, SYSTEM_ALERT → SystemNotificationData
+          oneOf:
+            - $ref: '#/components/schemas/RecipeActorNotificationData'
+            - $ref: '#/components/schemas/RecipeSystemNotificationData'
+            - $ref: '#/components/schemas/SocialNotificationData'
+            - $ref: '#/components/schemas/SystemNotificationData'
+          discriminator:
+            propertyName: notificationCategory
+            mapping:
+              RECIPE_LIKED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_COMMENTED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_SHARED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_COLLECTED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_RATED: '#/components/schemas/RecipeActorNotificationData'
+              RECIPE_PUBLISHED: '#/components/schemas/RecipeSystemNotificationData'
+              RECIPE_FEATURED: '#/components/schemas/RecipeSystemNotificationData'
+              RECIPE_TRENDING: '#/components/schemas/RecipeSystemNotificationData'
+              NEW_FOLLOWER: '#/components/schemas/SocialNotificationData'
+              MENTION: '#/components/schemas/SocialNotificationData'
+              COLLECTION_INVITE: '#/components/schemas/SocialNotificationData'
+              WELCOME: '#/components/schemas/SystemNotificationData'
+              PASSWORD_RESET: '#/components/schemas/SystemNotificationData'
+              PASSWORD_CHANGED: '#/components/schemas/SystemNotificationData'
+              EMAIL_CHANGED: '#/components/schemas/SystemNotificationData'
+              MAINTENANCE: '#/components/schemas/SystemNotificationData'
+              SYSTEM_ALERT: '#/components/schemas/SystemNotificationData'
+        title:
+          type: string
+          description: Computed from notificationCategory + notificationData (not stored in DB)
         message:
           type: string
-          nullable: true
-          description: Message body (excluded by default to reduce payload size - use include_message query parameter to retrieve)
-        notification_type:
-          type: string
-          enum: [email]
-          description: Notification delivery type (implementation uses string validation, not strict enum)
-        status:
-          type: string
-          enum: [pending, queued, sent, failed]
-          description: Current notification status (implementation uses string validation, not strict enum)
-        error_message:
-          type: string
-          description: Error message if status is failed (empty string when no error)
-        retry_count:
-          type: integer
-          minimum: 0
-        max_retries:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
-        queued_at:
-          type: string
-          format: date-time
-          nullable: true
-        sent_at:
-          type: string
-          format: date-time
-          nullable: true
-        failed_at:
-          type: string
-          format: date-time
-          nullable: true
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Template-specific metadata
+          description: Computed from notificationCategory + notificationData (not stored in DB)
+        deliveryStatuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationDeliveryStatus'
+          description: Delivery status for each channel (EMAIL, IN_APP, PUSH, SMS)
 
     NotificationListResponse:
       type: object
@@ -2020,19 +2676,29 @@ components:
           type: integer
         status_breakdown:
           type: object
+          description: Count of notifications by delivery status
           properties:
-            pending:
+            PENDING:
               type: integer
-            queued:
+            QUEUED:
               type: integer
-            sent:
+            SENT:
               type: integer
-            failed:
+            FAILED:
+              type: integer
+            ABORTED:
               type: integer
         type_breakdown:
           type: object
+          description: Count of notifications by delivery channel
           properties:
-            email:
+            EMAIL:
+              type: integer
+            IN_APP:
+              type: integer
+            PUSH:
+              type: integer
+            SMS:
               type: integer
         success_rate:
           type: number

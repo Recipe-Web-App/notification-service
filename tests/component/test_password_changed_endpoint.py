@@ -46,10 +46,10 @@ class TestPasswordChangedEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
-    @patch("core.services.system_notification_service.render_to_string")
+    @patch("core.services.system_notification_service.User.objects")
     def test_post_with_service_to_service_auth_returns_202(
         self,
-        mock_render,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -68,11 +68,17 @@ class TestPasswordChangedEndpoint(TestCase):
 
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_user
-        mock_render.return_value = "<html>email content</html>"
+
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id
+        mock_user_objects.get.return_value = mock_db_user
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -234,10 +240,10 @@ class TestPasswordChangedEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
-    @patch("core.services.system_notification_service.render_to_string")
+    @patch("core.services.system_notification_service.User.objects")
     def test_response_contains_notification_id(
         self,
-        mock_render,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -256,11 +262,17 @@ class TestPasswordChangedEndpoint(TestCase):
 
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_user
-        mock_render.return_value = "<html>email content</html>"
+
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id
+        mock_user_objects.get.return_value = mock_db_user
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -285,10 +297,10 @@ class TestPasswordChangedEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
-    @patch("core.services.system_notification_service.render_to_string")
+    @patch("core.services.system_notification_service.User.objects")
     def test_batch_processing_multiple_recipients(
         self,
-        mock_render,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -307,11 +319,16 @@ class TestPasswordChangedEndpoint(TestCase):
 
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_user
-        mock_render.return_value = "<html>email content</html>"
+
+        mock_db_user = Mock()
+        mock_user_objects.get.return_value = mock_db_user
 
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Create request with 3 recipients
         batch_data = {

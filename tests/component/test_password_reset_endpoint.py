@@ -50,8 +50,10 @@ class TestPasswordResetEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     def test_post_with_admin_scope_returns_202(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -70,9 +72,16 @@ class TestPasswordResetEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -338,8 +347,10 @@ class TestPasswordResetEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     def test_response_contains_notification_id(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -358,9 +369,16 @@ class TestPasswordResetEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id
+        mock_user_objects.get.return_value = mock_db_user
+
         notification_id = uuid4()
         mock_notification = Mock(notification_id=notification_id)
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -386,12 +404,14 @@ class TestPasswordResetEndpoint(TestCase):
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     @patch(
         "core.services.system_notification_service.FRONTEND_BASE_URL",
         "https://example.com",
     )
     def test_reset_url_constructed_correctly(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -410,9 +430,16 @@ class TestPasswordResetEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -424,21 +451,25 @@ class TestPasswordResetEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 202)
 
-        # Verify notification service was called with correct template data
+        # Verify notification service was called with correct notification_data
         mock_notification_service.create_notification.assert_called_once()
         call_kwargs = mock_notification_service.create_notification.call_args[1]
 
-        # Check that the message contains the reset token
-        message = call_kwargs["message"]
-        self.assertIn(self.reset_token, message)
-        self.assertIn("https://example.com/reset-password?token=", message)
+        # Check that the notification_data contains the reset URL
+        notification_data = call_kwargs["notification_data"]
+        self.assertIn(self.reset_token, notification_data["reset_url"])
+        self.assertIn(
+            "https://example.com/reset-password?token=", notification_data["reset_url"]
+        )
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     def test_notification_includes_metadata(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -457,9 +488,16 @@ class TestPasswordResetEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -471,21 +509,24 @@ class TestPasswordResetEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 202)
 
-        # Verify metadata
+        # Verify notification_data (replaces old metadata)
         mock_notification_service.create_notification.assert_called_once()
         call_kwargs = mock_notification_service.create_notification.call_args[1]
 
-        metadata = call_kwargs["metadata"]
-        self.assertEqual(metadata["template_type"], "password_reset")
-        self.assertEqual(metadata["recipient_id"], str(self.recipient_id))
-        self.assertEqual(metadata["expiry_hours"], self.expiry_hours)
+        notification_data = call_kwargs["notification_data"]
+        self.assertEqual(notification_data["recipient_id"], str(self.recipient_id))
+        self.assertEqual(notification_data["expiry_hours"], self.expiry_hours)
+        # notification_category is now the template type
+        self.assertEqual(call_kwargs["notification_category"], "PASSWORD_RESET")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.system_notification_service.user_client")
     @patch("core.services.system_notification_service.notification_service")
+    @patch("core.services.system_notification_service.User.objects")
     def test_notification_auto_queued(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_authenticate,
@@ -504,9 +545,16 @@ class TestPasswordResetEndpoint(TestCase):
         # Setup service mocks
         mock_user_client.get_user.return_value = self.mock_recipient
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_id
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -518,7 +566,8 @@ class TestPasswordResetEndpoint(TestCase):
         # Assertions
         self.assertEqual(response.status_code, 202)
 
-        # Verify auto_queue was set to True
+        # Verify notification was created (auto_queue defaults to True)
         mock_notification_service.create_notification.assert_called_once()
         call_kwargs = mock_notification_service.create_notification.call_args[1]
-        self.assertTrue(call_kwargs["auto_queue"])
+        # auto_queue defaults to True when not explicitly passed
+        self.assertEqual(call_kwargs.get("auto_queue", True), True)

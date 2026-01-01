@@ -60,8 +60,10 @@ class TestNewFollowerEndpoint(TestCase):
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.notification_service")
+    @patch("core.services.social_notification_service.User.objects")
     def test_post_with_admin_scope_returns_202(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_recipe_client,
         mock_user_client,
@@ -86,9 +88,16 @@ class TestNewFollowerEndpoint(TestCase):
         mock_user_client.validate_follower_relationship.return_value = True
         mock_recipe_client.get_user_recipe_count.return_value = 5
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_ids[0]
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -355,8 +364,10 @@ class TestNewFollowerEndpoint(TestCase):
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.notification_service")
+    @patch("core.services.social_notification_service.User.objects")
     def test_response_contains_notification_ids(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_recipe_client,
         mock_user_client,
@@ -381,10 +392,17 @@ class TestNewFollowerEndpoint(TestCase):
         mock_user_client.validate_follower_relationship.return_value = True
         mock_recipe_client.get_user_recipe_count.return_value = 3
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_ids[0]
+        mock_user_objects.get.return_value = mock_db_user
+
         # Create mock notification with ID
         notification_id = uuid4()
         mock_notification = Mock(notification_id=notification_id)
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -411,8 +429,10 @@ class TestNewFollowerEndpoint(TestCase):
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.notification_service")
+    @patch("core.services.social_notification_service.User.objects")
     def test_recipe_count_is_fetched(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_recipe_client,
         mock_user_client,
@@ -437,9 +457,16 @@ class TestNewFollowerEndpoint(TestCase):
         mock_user_client.validate_follower_relationship.return_value = True
         mock_recipe_client.get_user_recipe_count.return_value = 10
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_ids[0]
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(

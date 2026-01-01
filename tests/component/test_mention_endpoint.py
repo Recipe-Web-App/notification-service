@@ -82,8 +82,10 @@ class TestMentionEndpoint(TestCase):
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
+    @patch("core.services.social_notification_service.User.objects")
     def test_post_with_admin_scope_returns_202(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
@@ -108,9 +110,16 @@ class TestMentionEndpoint(TestCase):
         ]
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_ids[0]
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -451,8 +460,10 @@ class TestMentionEndpoint(TestCase):
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
+    @patch("core.services.social_notification_service.User.objects")
     def test_response_contains_notification_ids(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
@@ -477,10 +488,17 @@ class TestMentionEndpoint(TestCase):
         ]
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_ids[0]
+        mock_user_objects.get.return_value = mock_db_user
+
         # Create mock notification with ID
         notification_id = uuid4()
         mock_notification = Mock(notification_id=notification_id)
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
@@ -507,15 +525,17 @@ class TestMentionEndpoint(TestCase):
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
+    @patch("core.services.social_notification_service.User.objects")
     def test_metadata_includes_all_fields(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
         mock_authenticate,
         mock_get_current_user,
     ):
-        """Test notification metadata includes all required fields."""
+        """Test notification data includes all required fields."""
         # Setup authentication
         admin_user = OAuth2User(
             user_id=str(uuid4()),
@@ -533,9 +553,16 @@ class TestMentionEndpoint(TestCase):
         ]
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = self.recipient_ids[0]
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         self.client.post(
@@ -544,23 +571,24 @@ class TestMentionEndpoint(TestCase):
             content_type="application/json",
         )
 
-        # Assertions - check metadata passed to create_notification
+        # Assertions - check notification_data passed to create_notification
         call_kwargs = mock_notification_service.create_notification.call_args.kwargs
-        metadata = call_kwargs["metadata"]
+        notification_data = call_kwargs["notification_data"]
 
-        self.assertEqual(metadata["template_type"], "mention")
-        self.assertEqual(metadata["comment_id"], str(self.comment_id))
-        self.assertEqual(metadata["recipient_id"], str(self.recipient_ids[0]))
-        self.assertEqual(metadata["commenter_id"], str(self.commenter_id))
-        self.assertEqual(metadata["recipe_id"], str(self.recipe_id))
+        self.assertEqual(notification_data["comment_id"], str(self.comment_id))
+        self.assertEqual(notification_data["commenter_id"], str(self.commenter_id))
+        self.assertEqual(notification_data["recipe_id"], str(self.recipe_id))
+        self.assertEqual(call_kwargs["notification_category"], "MENTION")
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.social_notification_service.recipe_management_service_client")
     @patch("core.services.social_notification_service.user_client")
     @patch("core.services.social_notification_service.notification_service")
+    @patch("core.services.social_notification_service.User.objects")
     def test_multiple_recipients_handled_correctly(
         self,
+        mock_user_objects,
         mock_notification_service,
         mock_user_client,
         mock_recipe_client,
@@ -603,9 +631,16 @@ class TestMentionEndpoint(TestCase):
         ]
         mock_recipe_client.get_recipe.return_value = self.mock_recipe
 
+        mock_db_user = Mock()
+        mock_db_user.user_id = uuid4()
+        mock_user_objects.get.return_value = mock_db_user
+
         mock_notification = Mock()
         mock_notification.notification_id = uuid4()
-        mock_notification_service.create_notification.return_value = mock_notification
+        mock_notification_service.create_notification.return_value = (
+            mock_notification,
+            [],
+        )
 
         # Execute
         response = self.client.post(
