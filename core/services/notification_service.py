@@ -43,7 +43,7 @@ class NotificationService:
         user: User,
         notification_category: str,
         notification_data: dict[str, Any],
-        recipient_email: str,
+        recipient_email: str | None,
         auto_queue: bool = True,
     ) -> tuple[Notification, list[NotificationStatus]]:
         """Create a new notification with delivery status records.
@@ -52,11 +52,14 @@ class NotificationService:
         EMAIL and IN_APP channels. The IN_APP status is marked as SENT
         immediately since it doesn't require delivery.
 
+        If recipient_email is None, the EMAIL status is marked as SKIPPED
+        and the notification is not queued for email delivery.
+
         Args:
             user: User instance receiving the notification.
             notification_category: Category determining template rendering.
             notification_data: Template parameters (must include template_version).
-            recipient_email: Email address for EMAIL delivery.
+            recipient_email: Email address for EMAIL delivery (None to skip email).
             auto_queue: Automatically queue EMAIL for sending (default: True).
 
         Returns:
@@ -70,12 +73,27 @@ class NotificationService:
             is_deleted=False,
         )
 
-        email_status = NotificationStatus.objects.create(
-            notification=notification,
-            notification_type=NotificationType.EMAIL.value,
-            status="PENDING",
-            recipient_email=recipient_email,
-        )
+        # If no email, mark as SKIPPED; otherwise PENDING
+        if recipient_email is None:
+            email_status = NotificationStatus.objects.create(
+                notification=notification,
+                notification_type=NotificationType.EMAIL.value,
+                status="SKIPPED",
+                error_message="No email address available for recipient",
+            )
+            logger.warning(
+                "notification_email_skipped",
+                notification_id=str(notification.notification_id),
+                user_id=str(user.user_id),
+                reason="no_email_address",
+            )
+        else:
+            email_status = NotificationStatus.objects.create(
+                notification=notification,
+                notification_type=NotificationType.EMAIL.value,
+                status="PENDING",
+                recipient_email=recipient_email,
+            )
 
         in_app_status = NotificationStatus.objects.create(
             notification=notification,
@@ -90,9 +108,10 @@ class NotificationService:
             user_id=str(user.user_id),
             notification_category=notification_category,
             recipient_email=recipient_email,
+            email_skipped=recipient_email is None,
         )
 
-        if auto_queue:
+        if auto_queue and recipient_email is not None:
             self.queue_notification(notification.notification_id)
 
         return notification, [email_status, in_app_status]

@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from core.config.downstream_urls import USER_SERVICE_BASE_URL
 from core.exceptions import UserNotFoundError
-from core.schemas.user import UserSearchResult
+from core.schemas.user import UserProfileResponse
 from core.services.downstream.base_downstream_client import (
     BaseDownstreamClient,
 )
@@ -21,17 +21,17 @@ class UserClient(BaseDownstreamClient):
         super().__init__(
             service_name="user-management",
             base_url=USER_SERVICE_BASE_URL,
-            requires_auth=False,  # Public endpoint per spec
+            requires_auth=True,  # Service-to-service auth for email access
         )
 
-    def get_user(self, user_id: str) -> UserSearchResult:
-        """Fetch user by ID from user-management service.
+    def get_user(self, user_id: str) -> UserProfileResponse:
+        """Fetch user profile by ID from user-management service.
 
         Args:
             user_id: User UUID (string format)
 
         Returns:
-            UserSearchResult object with user data
+            UserProfileResponse object with user profile data including email
 
         Raises:
             UserNotFoundError: If user with given ID does not exist
@@ -40,9 +40,11 @@ class UserClient(BaseDownstreamClient):
             requests.Timeout: If request times out
             requests.ConnectionError: If connection fails
         """
-        url = f"{self.base_url}/user-management/users/{user_id}"
+        url = f"{self.base_url}/user-management/users/{user_id}/profile"
 
-        logger.info("Fetching user from user-management service", user_id=user_id)
+        logger.info(
+            "Fetching user profile from user-management service", user_id=user_id
+        )
 
         response = self._make_request("GET", url)
 
@@ -54,17 +56,18 @@ class UserClient(BaseDownstreamClient):
         # Parse and validate response
         try:
             user_data = response.json()
-            user_result = UserSearchResult(**user_data)
+            user_result = UserProfileResponse(**user_data)
             logger.info(
-                "Successfully fetched user",
+                "Successfully fetched user profile",
                 user_id=user_id,
                 username=user_result.username,
+                has_email=user_result.email is not None,
             )
             return user_result
 
         except ValidationError as e:
             logger.error(
-                "Failed to validate user response",
+                "Failed to validate user profile response",
                 user_id=user_id,
                 validation_errors=e.errors(),
             )
@@ -72,7 +75,7 @@ class UserClient(BaseDownstreamClient):
 
         except Exception as e:
             logger.error(
-                "Failed to parse user response",
+                "Failed to parse user profile response",
                 user_id=user_id,
                 error=str(e),
             )
@@ -109,30 +112,35 @@ class UserClient(BaseDownstreamClient):
         try:
             response = self._make_request("GET", url)
 
-            # 200 = relationship exists, 404 = relationship does not exist
+            # Handle 404 - user not found
+            if response.status_code == 404:
+                logger.info(
+                    "User not found when checking follower relationship",
+                    follower_id=follower_id,
+                    followee_id=followee_id,
+                )
+                return False
+
+            # Parse the FollowRelationshipResponse
             if response.status_code == 200:
+                data = response.json()
+                is_following: bool = bool(data.get("isFollowing", False))
                 logger.info(
-                    "Follower relationship validated",
+                    "Follower relationship check completed",
                     follower_id=follower_id,
                     followee_id=followee_id,
+                    is_following=is_following,
                 )
-                return True
-            elif response.status_code == 404:
-                logger.info(
-                    "Follower relationship does not exist",
-                    follower_id=follower_id,
-                    followee_id=followee_id,
-                )
-                return False
-            else:
-                # For any other status code, return False
-                logger.warning(
-                    "Unexpected status code when validating follower relationship",
-                    follower_id=follower_id,
-                    followee_id=followee_id,
-                    status_code=response.status_code,
-                )
-                return False
+                return is_following
+
+            # For any other status code, return False
+            logger.warning(
+                "Unexpected status code when validating follower relationship",
+                follower_id=follower_id,
+                followee_id=followee_id,
+                status_code=response.status_code,
+            )
+            return False
 
         except Exception as e:
             logger.error(
