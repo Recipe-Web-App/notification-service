@@ -26,30 +26,37 @@ class TestNotificationDetailGetEndpoint(TestCase):
         self.user_id = uuid4()
         self.other_user_id = uuid4()
         self.url = f"/api/v1/notification/notifications/{self.notification_id}"
+        self.now = datetime.now(UTC)
 
-        # Mock notification with both new schema fields (for authorization)
-        # and old schema fields (for NotificationDetail serialization)
+        # Mock notification with new two-table schema
         self.mock_notification = Mock(spec=Notification)
         self.mock_notification.notification_id = self.notification_id
-        self.mock_notification.user_id = (
-            self.user_id
-        )  # New schema uses user_id for authorization
-        # Old schema fields for NotificationDetail serialization
-        self.mock_notification.recipient_id = self.user_id
-        self.mock_notification.recipient_email = "user@example.com"
-        self.mock_notification.subject = "Test Notification"
-        self.mock_notification.message = "This is a test message body"
-        self.mock_notification.notification_type = "email"
-        self.mock_notification.status = "sent"
-        self.mock_notification.error_message = ""
-        self.mock_notification.retry_count = 0
-        self.mock_notification.max_retries = 3
-        self.mock_notification.created_at = datetime.now(UTC)
-        self.mock_notification.queued_at = datetime.now(UTC)
-        self.mock_notification.sent_at = datetime.now(UTC)
-        self.mock_notification.failed_at = None
-        self.mock_notification.metadata = {"template_type": "recipe_published"}
+        self.mock_notification.user_id = self.user_id
+        self.mock_notification.notification_category = "RECIPE_PUBLISHED"
+        self.mock_notification.is_read = False
+        self.mock_notification.is_deleted = False
+        self.mock_notification.notification_data = {
+            "template_version": "1.0",
+            "recipe_title": "Test Recipe",
+            "actor_name": "Chef John",
+        }
+        self.mock_notification.created_at = self.now
+        self.mock_notification.updated_at = self.now
 
+        # Mock notification status for delivery tracking
+        self.mock_status = Mock()
+        self.mock_status.notification_type = "EMAIL"
+        self.mock_status.status = "SENT"
+        self.mock_status.retry_count = 0
+        self.mock_status.error_message = None
+        self.mock_status.recipient_email = "user@example.com"
+        self.mock_status.created_at = self.now
+        self.mock_status.updated_at = self.now
+        self.mock_status.queued_at = self.now
+        self.mock_status.sent_at = self.now
+        self.mock_status.failed_at = None
+
+    @patch("core.views.NotificationStatus.objects.filter")
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.notification_service.Notification.objects.get")
@@ -58,6 +65,7 @@ class TestNotificationDetailGetEndpoint(TestCase):
         mock_notification_get,
         mock_authenticate,
         mock_get_current_user,
+        mock_status_filter,
     ):
         """Test GET with admin scope returns HTTP 200."""
         # Setup authentication
@@ -72,6 +80,9 @@ class TestNotificationDetailGetEndpoint(TestCase):
         # Setup notification mock
         mock_notification_get.return_value = self.mock_notification
 
+        # Setup status mock
+        mock_status_filter.return_value = [self.mock_status]
+
         # Execute
         response = self.client.get(self.url)
 
@@ -79,9 +90,12 @@ class TestNotificationDetailGetEndpoint(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["notification_id"], str(self.notification_id))
-        self.assertEqual(data["subject"], "Test Notification")
+        self.assertEqual(data["notification_category"], "RECIPE_PUBLISHED")
+        self.assertIn("title", data)
+        self.assertIn("delivery_statuses", data)
         self.assertNotIn("message", data)  # Message excluded by default
 
+    @patch("core.views.NotificationStatus.objects.filter")
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.notification_service.Notification.objects.get")
@@ -90,6 +104,7 @@ class TestNotificationDetailGetEndpoint(TestCase):
         mock_notification_get,
         mock_authenticate,
         mock_get_current_user,
+        mock_status_filter,
     ):
         """Test GET as notification owner returns HTTP 200."""
         # Setup authentication as owner
@@ -104,6 +119,9 @@ class TestNotificationDetailGetEndpoint(TestCase):
         # Setup notification mock
         mock_notification_get.return_value = self.mock_notification
 
+        # Setup status mock
+        mock_status_filter.return_value = [self.mock_status]
+
         # Execute
         response = self.client.get(self.url)
 
@@ -111,7 +129,9 @@ class TestNotificationDetailGetEndpoint(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["notification_id"], str(self.notification_id))
+        self.assertEqual(data["user_id"], str(self.user_id))
 
+    @patch("core.views.NotificationStatus.objects.filter")
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
     @patch("core.services.notification_service.Notification.objects.get")
@@ -120,6 +140,7 @@ class TestNotificationDetailGetEndpoint(TestCase):
         mock_notification_get,
         mock_authenticate,
         mock_get_current_user,
+        mock_status_filter,
     ):
         """Test GET with include_message=true includes message body."""
         # Setup authentication
@@ -134,6 +155,9 @@ class TestNotificationDetailGetEndpoint(TestCase):
         # Setup notification mock
         mock_notification_get.return_value = self.mock_notification
 
+        # Setup status mock
+        mock_status_filter.return_value = [self.mock_status]
+
         # Execute with include_message query param
         response = self.client.get(f"{self.url}?include_message=true")
 
@@ -141,7 +165,8 @@ class TestNotificationDetailGetEndpoint(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("message", data)
-        self.assertEqual(data["message"], "This is a test message body")
+        # Message is computed from template, should contain recipe title
+        self.assertIn("Test Recipe", data["message"])
 
     @patch("core.auth.context.get_current_user")
     @patch("core.auth.oauth2.OAuth2Authentication.authenticate")
