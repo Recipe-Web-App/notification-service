@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.auth.oauth2 import OAuth2Authentication
+from core.models import NotificationStatus
 from core.pagination import NotificationPageNumberPagination
 from core.schemas.notification import (
     EmailChangedRequest,
@@ -46,7 +47,10 @@ from core.services.social_notification_service import (
 from core.services.system_notification_service import (
     system_notification_service,
 )
-from core.services.user_notification_service import user_notification_service
+from core.services.user_notification_service import (
+    NOTIFICATION_TEMPLATES,
+    user_notification_service,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -1462,11 +1466,58 @@ class NotificationDetailView(APIView):
         try:
             notification = notification_service.get_notification_for_user(
                 notification_id=notification_id_uuid,
-                include_message=include_message,
             )
 
-            # Serialize notification
-            notification_detail = NotificationDetail.model_validate(notification)
+            # Get delivery statuses for this notification
+            statuses = NotificationStatus.objects.filter(notification=notification)
+
+            # Compute title/message from template
+            template = NOTIFICATION_TEMPLATES.get(
+                notification.notification_category,
+                {
+                    "title": "Notification",
+                    "message": notification.notification_category,
+                },
+            )
+            data = notification.notification_data or {}
+            try:
+                title = template["title"].format(**data)
+                message = template["message"].format(**data)
+            except KeyError:
+                title = template["title"]
+                message = template["message"]
+
+            # Build delivery statuses list manually to avoid alias issues
+            delivery_statuses = [
+                {
+                    "notification_type": s.notification_type,
+                    "status": s.status,
+                    "retry_count": s.retry_count,
+                    "error_message": s.error_message,
+                    "recipient_email": s.recipient_email,
+                    "created_at": s.created_at,
+                    "updated_at": s.updated_at,
+                    "queued_at": s.queued_at,
+                    "sent_at": s.sent_at,
+                    "failed_at": s.failed_at,
+                }
+                for s in statuses
+            ]
+
+            # Build response
+            notification_detail = NotificationDetail(
+                notification_id=notification.notification_id,
+                user_id=notification.user_id,
+                notification_category=notification.notification_category,
+                is_read=notification.is_read,
+                is_deleted=notification.is_deleted,
+                created_at=notification.created_at,
+                updated_at=notification.updated_at,
+                notification_data=data,
+                title=title,
+                message=message if include_message else None,
+                delivery_statuses=delivery_statuses,
+            )
 
             # Exclude message if not requested
             if include_message:

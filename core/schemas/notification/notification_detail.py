@@ -1,68 +1,60 @@
-"""Schema for notification details."""
+"""Schema for notification details with delivery statuses."""
 
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import EmailStr, Field
+from pydantic import Field
 
 from core.schemas.base_schema_model import BaseSchemaModel
+from core.schemas.notification.notification_delivery_status import (
+    NotificationDeliveryStatus,
+)
 
 
 class NotificationDetail(BaseSchemaModel):
-    """Schema for notification details.
+    """Schema for detailed notification information including delivery statuses.
 
-    The message field is optional and can be excluded from the response
-    to reduce payload size. Use the include_message parameter when
-    fetching notifications to include the full message body.
+    The title and message fields are computed on-the-fly from
+    notification_category + notification_data. They are not stored in
+    the database.
+
+    The delivery_statuses array shows the delivery status for each
+    channel (EMAIL, IN_APP, PUSH, SMS). A single notification can have
+    multiple delivery statuses if it was sent via multiple channels.
     """
 
     notification_id: UUID = Field(
         ..., description="Unique identifier for the notification"
     )
-    recipient_email: EmailStr = Field(
-        ..., description="Email address of the notification recipient"
+    user_id: UUID = Field(..., description="Owner of this notification")
+    notification_category: str = Field(
+        ...,
+        description="Category determining template and notification_data structure",
     )
-    subject: str = Field(
-        ..., min_length=1, description="Subject line of the notification"
+    is_read: bool = Field(
+        ..., description="Whether the notification has been read (in-app state)"
+    )
+    is_deleted: bool = Field(
+        ..., description="Whether the notification has been soft deleted"
+    )
+    created_at: datetime = Field(..., description="When the notification was created")
+    updated_at: datetime = Field(
+        ..., description="When the notification was last updated"
+    )
+    notification_data: dict[str, Any] = Field(
+        ...,
+        description="Template parameters including templateVersion for rendering",
+    )
+    title: str = Field(
+        ...,
+        description="Computed from category + notificationData (not stored)",
     )
     message: str | None = Field(
-        None, description="Full message body (optional, may be excluded for brevity)"
+        None,
+        description="Computed from category + notificationData (not stored)",
     )
-    notification_type: str = Field(
+    delivery_statuses: list[NotificationDeliveryStatus] = Field(
         ...,
-        min_length=1,
-        description="Type of notification (e.g., WELCOME, PASSWORD_RESET)",
-    )
-    status: str = Field(
-        ...,
-        min_length=1,
-        description="Current status (e.g., PENDING, SENT, FAILED)",
-    )
-    error_message: str = Field(
-        ..., description="Error message if failed (empty string if no error)"
-    )
-    retry_count: int = Field(
-        ..., ge=0, description="Number of times notification was retried"
-    )
-    max_retries: int = Field(
-        ..., ge=0, description="Maximum number of retry attempts allowed"
-    )
-    created_at: datetime = Field(
-        ..., description="Timestamp when the notification was created"
-    )
-    queued_at: datetime | None = Field(
-        None, description="Timestamp when notification was queued for sending"
-    )
-    sent_at: datetime | None = Field(
-        None, description="Timestamp when notification was successfully sent"
-    )
-    failed_at: datetime | None = Field(
-        None, description="Timestamp when the notification failed"
-    )
-    metadata: dict[str, Any] | None = Field(
-        None, description="Additional metadata associated with notification"
-    )
-    recipient_id: UUID | None = Field(
-        None, description="Unique identifier for the recipient user"
+        description="Delivery status for each channel (EMAIL, IN_APP, PUSH, SMS)",
     )
