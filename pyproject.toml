@@ -75,7 +75,7 @@ pytest-cov = "^7.0.0"
 
 # Test data generation
 factory-boy = "^3.3.0"
-faker = "^39.0.0"
+faker = "^40.1.0"
 
 # HTTP mocking
 requests = "^2.31.0"
