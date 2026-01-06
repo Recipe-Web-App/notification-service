@@ -216,7 +216,7 @@ repos:
   # Commit Message Validation
   # ============================================================================
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.10.0
+    rev: v4.11.1
     hooks:
       - id: commitizen
         stages: [commit-msg]
