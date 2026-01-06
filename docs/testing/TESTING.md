@@ -188,7 +188,6 @@ def test_get_notification_status_when_not_found_returns_404(self):
 ### Integration & Dependencies
 
 - **testcontainers**: Dockerized dependencies (PostgreSQL, Redis, LocalStack)
-- **django-test-migrations**: Test database migrations
 
 ### Performance
 
@@ -199,11 +198,9 @@ def test_get_notification_status_when_not_found_returns_404(self):
 
 - Review test-type-specific documentation in this directory
 - Check existing tests for examples
-- See `docs/TEST_IMPLEMENTATION_PLAN.md` for setup details
 - Ask the team in `#engineering` Slack channel
 
 ## Related Documentation
 
-- [Contributing Guidelines](../CONTRIBUTING.md)
-- [Code Style Guide](../CODE_STYLE.md)
-- [API Documentation](../API.md)
+- [Contributing Guidelines](../../.github/CONTRIBUTING.md)
+- [OpenAPI Specification](../openapi.yaml)

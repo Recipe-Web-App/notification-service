@@ -16,9 +16,16 @@ A Django-based notification service API for the recipe web app.
 poetry install
 ```
 
-2. Run migrations:
+2. Set up pre-commit hooks:
 ```bash
-poetry run python manage.py migrate
+poetry run pre-commit install
+poetry run pre-commit install --hook-type commit-msg
+```
+
+3. Configure environment:
+```bash
+cp .env.example .env.local
+# Edit .env.local with your database and Redis settings
 ```
 
 ## Running Locally

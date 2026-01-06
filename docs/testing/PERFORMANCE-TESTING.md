@@ -678,4 +678,3 @@ When performance issues are detected:
 - [Component Testing](./COMPONENT-TESTING.md)
 - [Dependency Testing](./DEPENDENCY-TESTING.md)
 - [Locust Documentation](https://docs.locust.io/)
-- [Performance Optimization Guide](../OPTIMIZATION.md)
