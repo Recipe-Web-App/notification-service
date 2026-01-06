@@ -544,13 +544,13 @@ class TestWithFactories(TestCase):
 poetry run test-dependency
 
 # Run specific test file
-poetry run python manage.py test tests.dependency.test_database_operations
+poetry run pytest tests/dependency/test_database_operations.py -v
 
 # Run with test containers (automatic)
 poetry run test-dependency
 
 # Run specific integration
-poetry run python manage.py test tests.dependency.test_auth_service
+poetry run pytest tests/dependency/test_auth_service.py -v
 ```
 
 ## Environment Configuration

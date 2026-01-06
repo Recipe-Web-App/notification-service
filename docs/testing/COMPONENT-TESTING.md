@@ -580,14 +580,13 @@ class TestBatchNotifications(TestCase):
 poetry run test-component
 
 # Run specific test file
-poetry run python manage.py test tests.component.test_notification_endpoints
+poetry run pytest tests/component/test_notification_endpoints.py -v
 
 # Run with verbose output
-poetry run python manage.py test tests.component --verbosity=2
+poetry run pytest tests/component/ -v
 
 # Run with coverage
-poetry run coverage run --source='.' manage.py test tests.component
-poetry run coverage report
+poetry run pytest tests/component/ --cov=core --cov-report=term-missing
 ```
 
 ## Coverage Goals

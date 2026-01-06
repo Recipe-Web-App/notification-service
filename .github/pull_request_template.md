@@ -51,14 +51,12 @@ Fixes #
 
 ## Database/Storage Changes
 
-<!-- Describe any database schema or storage changes -->
+<!-- Note: This service does NOT own the database schema. All models have managed=False. -->
 
-- [ ] Database migrations included
-- [ ] Migration tested locally
-- [ ] Rollback plan documented
-- [ ] No database changes
+- [ ] No database changes (this service is a read-only database consumer)
+- [ ] Changes require coordination with database owner (describe below)
 
-**Migration details:**
+**Details:**
 
 ## API Changes
 
@@ -151,11 +149,11 @@ Fixes #
 <!-- Complete before requesting review -->
 
 - [ ] Code follows project style guidelines
-- [ ] Code formatted with `black`
-- [ ] Linting passes (`flake8`)
+- [ ] Pre-commit hooks pass (`poetry run pre-commit run --all-files`)
+- [ ] Linting passes (`ruff check`)
 - [ ] Type checking passes (`mypy`)
 - [ ] Tests added for new functionality
-- [ ] All tests passing
+- [ ] All tests passing (`poetry run test-all`)
 - [ ] Documentation updated
 - [ ] Commit messages follow conventional commits
 - [ ] PR title is clear and descriptive

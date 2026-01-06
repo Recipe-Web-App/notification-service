@@ -98,8 +98,9 @@ This service leverages Django's built-in security features:
 - **XSS Protection**: Template auto-escaping
 - **Clickjacking Protection**: X-Frame-Options header
 - **SSL/HTTPS**: Enforced in production
-- **Password Hashing**: Using Django's PBKDF2 algorithm
 - **Session Security**: Secure session cookies
+
+**Note**: This service is a read-only database consumer and does not manage user passwords.
 
 ### Django REST Framework Security
 
@@ -184,7 +185,7 @@ Before deploying to production:
 
 ### Django Specifics
 
-- **SQLite in Production**: Not recommended for production use. Consider PostgreSQL or MySQL.
+- **Database**: This service requires PostgreSQL (uses a shared database with schema isolation).
 - **Static File Serving**: Use a CDN or reverse proxy (nginx) in production, not Django.
 - **Admin Interface**: Restrict access, use strong passwords, consider hiding at custom URL.
 
