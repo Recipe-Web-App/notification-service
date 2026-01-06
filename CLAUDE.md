@@ -6,14 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Django-based notification service API for a recipe web app ecosystem. This service is a **read-only consumer** of a shared database - it does NOT own the schema. The service provides email notifications for recipe-related, social, and system events using a queue-based architecture with Redis and Django-RQ.
 
+**Python version**: 3.14 (required)
+
 ## Development Commands
 
 ### Environment Setup
 ```bash
-# Install dependencies
 poetry install
-
-# Install pre-commit hooks
 poetry run pre-commit install
 poetry run pre-commit install --hook-type commit-msg
 ```
@@ -25,9 +24,6 @@ poetry run local
 
 # Start RQ worker (required for email sending)
 poetry run python -m django_rq.management.commands.rqworker default
-
-# Production-like server with gunicorn
-poetry run gunicorn notification_service.wsgi:application --bind 0.0.0.0:8000 --workers 4
 ```
 
 ### Testing
@@ -41,44 +37,33 @@ poetry run test-component
 poetry run test-dependency
 poetry run test-performance
 
+# Run a single test file
+poetry run pytest tests/unit/test_notification_service.py -v
+
+# Run a specific test function
+poetry run pytest tests/unit/test_notification_service.py::TestNotificationService::test_create_notification -v
+
 # With coverage
 poetry run test-coverage
 ```
 
 ### Linting and Formatting
 ```bash
-# Run ruff linter
-poetry run ruff check core/
-poetry run ruff check core/ --fix
-
-# Run type checker
-poetry run mypy core/
-
-# Format code
-poetry run ruff format core/
-
-# Run pre-commit hooks manually
-poetry run pre-commit run --all-files
+poetry run ruff check core/ --fix    # Lint with auto-fix
+poetry run ruff format core/          # Format code
+poetry run mypy core/                 # Type check
+poetry run pre-commit run --all-files # Run all pre-commit hooks
 ```
 
 ### Kubernetes Deployment
-All scripts are in `scripts/containerManagement/`:
+Scripts are in `scripts/containerManagement/`:
 ```bash
-# Full deployment (build, apply, wait)
-./scripts/containerManagement/deploy-container.sh
-
-# Update running deployment
-./scripts/containerManagement/update-container.sh
-
-# Check status
+./scripts/containerManagement/deploy-container.sh   # Full deployment
+./scripts/containerManagement/update-container.sh   # Update running deployment
 ./scripts/containerManagement/get-container-status.sh
-
-# Start/stop
 ./scripts/containerManagement/start-container.sh
 ./scripts/containerManagement/stop-container.sh
-
-# Cleanup all resources
-./scripts/containerManagement/cleanup-container.sh
+./scripts/containerManagement/cleanup-container.sh  # Remove all resources
 ```
 
 ## Architecture
@@ -93,47 +78,14 @@ All scripts are in `scripts/containerManagement/`:
 
 4. **OAuth2 Authentication**: Optional OAuth2 integration with the auth-service for protected endpoints (feature-flagged).
 
-### Directory Structure
+### Key Architecture Layers
 
-```
-core/
-├── models/          # Django ORM models (unmanaged, one class per file)
-├── schemas/         # Pydantic schemas for validation (organized by feature)
-├── services/        # Business logic layer
-│   ├── notification_service.py        # Core notification logic
-│   ├── recipe_notification_service.py # Recipe-related notifications
-│   ├── social_notification_service.py # Social notifications (follows, mentions)
-│   ├── system_notification_service.py # System notifications (password reset)
-│   ├── admin_service.py               # Admin operations (stats, retries)
-│   ├── email_service.py               # SMTP email sending
-│   ├── health_service.py              # Health check logic
-│   └── downstream/                    # External service clients
-├── jobs/            # Django-RQ background jobs
-├── signals/         # Django signals for event-driven notifications
-├── middleware/      # Custom middleware (rate limiting, request ID, security)
-├── auth/            # OAuth2 authentication
-├── repositories/    # Data access layer
-├── exceptions/      # Custom exceptions and handlers
-├── constants/       # Application constants
-└── enums/           # Enumeration types
-
-notification_service/
-├── settings.py      # Django settings (loads .env.local)
-├── settings_test.py # Test settings
-└── urls.py          # Root URL config
-```
-
-### Service Layer Pattern
-
-The service layer is organized by domain:
-
-- **notification_service.py**: Core notification CRUD operations
-- **recipe_notification_service.py**: Recipe events (published, liked, commented)
-- **social_notification_service.py**: Social events (new follower, mentions)
-- **system_notification_service.py**: System events (password reset, welcome)
-- **admin_service.py**: Admin operations (stats, retry failed notifications)
-
-Each service encapsulates business logic and coordinates between repositories, jobs, and external services.
+- **`core/services/`**: Business logic layer organized by domain (recipe, social, system notifications)
+- **`core/schemas/`**: Pydantic schemas for request/response validation
+- **`core/repositories/`**: Data access layer
+- **`core/jobs/`**: Django-RQ background jobs for async email sending
+- **`core/middleware/`**: Request ID, rate limiting, security headers
+- **`core/services/downstream/`**: Clients for external services
 
 ### Background Job Processing
 
@@ -150,37 +102,11 @@ Email sending is async via Django-RQ:
 
 ### Authentication & Security
 
-OAuth2 is optional and feature-flagged:
-- `OAUTH2_SERVICE_ENABLED`: Enable OAuth2 authentication
-- `OAUTH2_SERVICE_TO_SERVICE_ENABLED`: Enable service-to-service auth
-- `OAUTH2_INTROSPECTION_ENABLED`: Use token introspection vs local JWT validation
+OAuth2 is optional and feature-flagged via `OAUTH2_SERVICE_ENABLED`, `OAUTH2_SERVICE_TO_SERVICE_ENABLED`, and `OAUTH2_INTROSPECTION_ENABLED`. Health check endpoints are exempt from authentication.
 
-Health check endpoints (`/health/live`, `/health/ready`) are exempt from authentication.
+### Database
 
-Middleware stack:
-1. `RequestIDMiddleware`: Adds X-Request-ID for tracing
-2. `ProcessTimeMiddleware`: Tracks request duration
-3. `RateLimitMiddleware`: Rate limiting via Redis
-4. `SecurityHeadersMiddleware`: Security headers
-5. `SecurityContextMiddleware`: Stores authenticated user context
-
-### Database Schema
-
-The service uses a shared PostgreSQL database with dedicated schema. Key models:
-
-- **Notification**: Core notification record with status tracking
-- **User**: Read-only user data from shared database
-- **UserFollow**: Read-only follow relationships
-
-All models have `managed = False` - migrations are disabled via `MIGRATION_MODULES = DisableMigrations()` in settings.
-
-### Health Checks
-
-Two endpoints for Kubernetes:
-- `/api/v1/notification/health/live`: Liveness probe (always returns 200)
-- `/api/v1/notification/health/ready`: Readiness probe (checks database connectivity, returns degraded status if DB unavailable)
-
-The readiness probe uses a degraded mode pattern - it returns 200 OK even when database is down, but indicates degraded status in response body. This prevents pod restarts while allowing background reconnection.
+The service uses a shared PostgreSQL database. All models have `managed = False` - migrations are disabled. Key models: `Notification`, `User`, `UserFollow`.
 
 ## Critical Development Rules
 
@@ -244,50 +170,16 @@ logger.info("event_description", key1="value1", key2="value2")
 
 ## Environment Configuration
 
-### Local Development
-Create `.env.local` in the project root (use `.env.example` as template):
-```bash
-# Database
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=recipe_db
-POSTGRES_SCHEMA=notifications
-NOTIFICATION_SERVICE_DB_USER=notification_user
-NOTIFICATION_SERVICE_DB_PASSWORD=your_password
+Create `.env.local` from `.env.example` for local development. Key variables:
+- Database: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_SCHEMA`, `NOTIFICATION_SERVICE_DB_USER`, `NOTIFICATION_SERVICE_DB_PASSWORD`
+- Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`
+- Email: `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` (Gmail app password)
 
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_DB=0
+For Kubernetes: Environment variables are provided via ConfigMap and Secrets.
 
-# Email (Gmail SMTP)
-EMAIL_HOST_USER=your_email@gmail.com
-EMAIL_HOST_PASSWORD=your_app_password
+## Testing
 
-# Logging
-LOG_LEVEL=INFO
-LOG_FILE_PATH=./logs/notification-service.log
-```
-
-### Production/Kubernetes
-Environment variables are provided via ConfigMap and Secrets. The `.env.prod` file is only used by deployment scripts to generate K8s resources.
-
-### Email Configuration
-Only 2 environment variables required for email:
-- `EMAIL_HOST_USER`: Gmail address
-- `EMAIL_HOST_PASSWORD`: Gmail app-specific password
-
-All other SMTP settings (host, port, TLS) are hardcoded in `settings.py`.
-
-## Testing Strategy
-
-Tests are organized by type:
-- **unit/**: Fast, isolated tests with mocked dependencies
-- **component/**: Integration tests for API endpoints
-- **dependency/**: Tests for external dependencies (health checks)
-- **performance/**: Locust-based load tests
-
-Use pytest fixtures in `tests/conftest.py` for common setup. Mock external services (SMTP, Redis, database) in unit tests.
+Tests are in `tests/` organized by type: `unit/`, `component/`, `dependency/`, `performance/`. Use pytest fixtures from `tests/conftest.py`.
 
 ## Common Patterns
 
@@ -299,55 +191,10 @@ Use pytest fixtures in `tests/conftest.py` for common setup. Mock external servi
 5. Add component tests in `tests/component/`
 
 ### Adding a New Service
-1. Create service file in `core/services/` (e.g., `new_service.py`)
+1. Create service file in `core/services/`
 2. Export from `core/services/__init__.py`
-3. Follow dependency injection pattern (inject dependencies in constructor or as class-level singletons)
+3. Follow dependency injection pattern
 
-### Adding Middleware
-1. Create middleware file in `core/middleware/`
-2. Export from `core/middleware/__init__.py`
-3. Add to `MIDDLEWARE` list in `settings.py` (order matters!)
+## Kubernetes
 
-## API Endpoint Structure
-
-All endpoints are prefixed with `/api/v1/notification/`
-
-Key endpoints:
-- `GET /health/live`: Liveness probe
-- `GET /health/ready`: Readiness probe
-- `GET /templates`: List available notification templates
-- `POST /notifications/recipe-published`: Create recipe published notification
-- `POST /notifications/recipe-liked`: Create recipe liked notification
-- `POST /notifications/recipe-commented`: Create recipe commented notification
-- `POST /notifications/new-follower`: Create new follower notification
-- `POST /notifications/mention`: Create mention notification
-- `POST /notifications/password-reset`: Create password reset notification
-- `GET /users/me/notifications`: Get authenticated user's notifications
-- `GET /users/<user_id>/notifications`: Get user's notifications by ID
-- `GET /stats`: Admin endpoint for notification statistics
-- `POST /notifications/retry-failed`: Retry all failed notifications
-- `POST /notifications/<id>/retry`: Retry specific notification
-
-## Docker & Kubernetes
-
-The service runs in Kubernetes (Minikube for local development):
-- **Namespace**: `notification-service`
-- **Deployment**: Django app with gunicorn (4 workers, 2 threads)
-- **Service**: ClusterIP on port 8000
-- **Ingress**: Routes `/api/v1/notification` to service (accessible at `http://sous-chef-proxy.local`)
-- **ConfigMap**: Database and Redis configuration
-- **Secret**: Sensitive credentials
-
-The RQ worker runs as a separate deployment in the same namespace.
-
-## Pre-commit Hooks
-
-The project uses pre-commit hooks for code quality:
-- ruff (linting)
-- ruff-format (formatting)
-- mypy (type checking)
-- interrogate (docstring coverage)
-- bandit (security)
-- commitizen (commit message format)
-
-See `.pre-commit-setup.md` for detailed configuration.
+The service runs in namespace `notification-service` with ingress at `http://sous-chef-proxy.local/api/v1/notification/`. The RQ worker runs as a separate deployment.
