@@ -50,7 +50,7 @@ isort = "^7.0.0"
 mypy = "^1.19.1"
 django-stubs = "^5.2.8"
 djangorestframework-stubs = "^3.16.6"
-types-requests = "^2.31.0"
+types-requests = "^2.32.4"
 
 # Documentation Coverage
 interrogate = "^1.7.0"
