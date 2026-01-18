@@ -21,6 +21,7 @@ data:
   REDIS_HOST: "${REDIS_HOST}"
   REDIS_PORT: "${REDIS_PORT}"
   REDIS_DB: "${REDIS_DB}"
+  REDIS_USER: "${REDIS_USER}"
 
   # Rate Limiting Configuration
   RATE_LIMIT_REQUESTS: "${RATE_LIMIT_REQUESTS}"

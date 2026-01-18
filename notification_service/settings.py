@@ -221,9 +221,14 @@ REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 REDIS_DB = int(os.environ.get("REDIS_DB", "0"))
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
+REDIS_USER = os.environ.get("REDIS_USER", "")
 
-# Build Redis URL with optional password
-if REDIS_PASSWORD:
+# Build Redis URL with optional username (Redis 6+ ACL) and password
+if REDIS_USER and REDIS_PASSWORD:
+    REDIS_URL = (
+        f"redis://{REDIS_USER}:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    )
+elif REDIS_PASSWORD:
     REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 else:
     REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
@@ -232,6 +237,7 @@ CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
         "LOCATION": REDIS_URL,
+        "KEY_PREFIX": "notification",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
             "SOCKET_CONNECT_TIMEOUT": 5,
@@ -292,24 +298,15 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 # Queue configuration for background job processing
 RQ_QUEUES = {
     "default": {
-        "HOST": REDIS_HOST,
-        "PORT": REDIS_PORT,
-        "DB": REDIS_DB,
-        "PASSWORD": REDIS_PASSWORD,
+        "URL": REDIS_URL,
         "DEFAULT_TIMEOUT": 300,
     },
     "high": {
-        "HOST": REDIS_HOST,
-        "PORT": REDIS_PORT,
-        "DB": REDIS_DB,
-        "PASSWORD": REDIS_PASSWORD,
+        "URL": REDIS_URL,
         "DEFAULT_TIMEOUT": 180,
     },
     "low": {
-        "HOST": REDIS_HOST,
-        "PORT": REDIS_PORT,
-        "DB": REDIS_DB,
-        "PASSWORD": REDIS_PASSWORD,
+        "URL": REDIS_URL,
         "DEFAULT_TIMEOUT": 600,
     },
 }
