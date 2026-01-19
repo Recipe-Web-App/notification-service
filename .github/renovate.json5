@@ -1,0 +1,196 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases"
+  ],
+  "description": "Renovate configuration for notification-service",
+
+  // Schedule: Weekly Monday 9 AM ET
+  "schedule": ["after 9am and before 10am on monday"],
+  "timezone": "America/New_York",
+
+  // PR Management
+  "prConcurrentLimit": 100,
+  "rebaseWhen": "behind-base-branch",
+  "assignees": ["jsamuelsen11"],
+
+  // Auto-merge settings (squash strategy)
+  "automerge": false,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": true,
+
+  // Dependency Dashboard (Renovate-only feature)
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Dependency Dashboard",
+  "dependencyDashboardLabels": ["dependencies", "dashboard"],
+
+  // Lock file maintenance (Renovate-only feature)
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 5am on the first day of the month"],
+    "automerge": true,
+    "commitMessagePrefix": "deps(lockfile):"
+  },
+
+  // Vulnerability alerts (Renovate-only feature)
+  "vulnerabilityAlerts": {
+    "labels": ["security", "dependencies"],
+    "schedule": ["at any time"],
+    "automerge": true
+  },
+
+  // Pin GitHub Actions digests for security (Renovate-only feature)
+  "pinDigests": true,
+
+  // Enable pre-commit manager (Renovate-only feature)
+  "pre-commit": {
+    "enabled": true
+  },
+
+  "packageRules": [
+    // =========================================
+    // Python Dependencies
+    // =========================================
+
+    // Patch updates (grouped, auto-merge)
+    {
+      "description": "Group Python patch updates",
+      "groupName": "python-patch-updates",
+      "matchManagers": ["poetry", "pip_requirements"],
+      "matchUpdateTypes": ["patch"],
+      "matchDepTypes": ["dependencies"],
+      "labels": ["dependencies", "python"],
+      "commitMessagePrefix": "deps(deps):",
+      "automerge": true
+    },
+    {
+      "description": "Group Python dev patch updates",
+      "groupName": "python-patch-updates",
+      "matchManagers": ["poetry", "pip_requirements"],
+      "matchUpdateTypes": ["patch"],
+      "matchDepTypes": ["devDependencies"],
+      "labels": ["dependencies", "python"],
+      "commitMessagePrefix": "deps-dev(deps-dev):",
+      "automerge": true
+    },
+
+    // Minor updates (grouped)
+    {
+      "description": "Group Python minor updates (production)",
+      "groupName": "python-minor-updates",
+      "matchManagers": ["poetry", "pip_requirements"],
+      "matchUpdateTypes": ["minor"],
+      "matchDepTypes": ["dependencies"],
+      "labels": ["dependencies", "python"],
+      "commitMessagePrefix": "deps(deps):",
+      "automerge": false
+    },
+    {
+      "description": "Group Python dev minor updates",
+      "groupName": "python-minor-updates",
+      "matchManagers": ["poetry", "pip_requirements"],
+      "matchUpdateTypes": ["minor"],
+      "matchDepTypes": ["devDependencies"],
+      "labels": ["dependencies", "python"],
+      "commitMessagePrefix": "deps-dev(deps-dev):",
+      "automerge": true
+    },
+
+    // Major updates (individual, no auto-merge)
+    {
+      "description": "Python major updates - manual review",
+      "matchManagers": ["poetry", "pip_requirements"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "python", "major-update"],
+      "commitMessagePrefix": "deps(deps):",
+      "automerge": false,
+      "prBodyNotes": ["**Major version update** - This PR requires manual review before merging."]
+    },
+
+    // Range strategy (equivalent to Dependabot's versioning-strategy: increase)
+    {
+      "matchManagers": ["poetry", "pip_requirements"],
+      "rangeStrategy": "bump"
+    },
+
+    // =========================================
+    // GitHub Actions
+    // =========================================
+    {
+      "description": "Group GitHub Actions updates",
+      "groupName": "github-actions",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "labels": ["dependencies", "github-actions"],
+      "commitMessagePrefix": "ci(ci):",
+      "automerge": true
+    },
+    {
+      "description": "GitHub Actions major - manual review",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "github-actions", "major-update"],
+      "commitMessagePrefix": "ci(ci):",
+      "automerge": false,
+      "prBodyNotes": ["**Major version update** - This PR requires manual review before merging."]
+    },
+
+    // =========================================
+    // Docker
+    // =========================================
+    {
+      "description": "Docker updates",
+      "groupName": "docker-updates",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "labels": ["dependencies", "docker"],
+      "commitMessagePrefix": "docker(docker):",
+      "automerge": true
+    },
+    {
+      "description": "Docker major - manual review",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "docker", "major-update"],
+      "commitMessagePrefix": "docker(docker):",
+      "automerge": false,
+      "prBodyNotes": ["**Major version update** - This PR requires manual review before merging."]
+    },
+
+    // =========================================
+    // Pre-commit (new - not in Dependabot)
+    // =========================================
+    {
+      "description": "Group pre-commit hook updates",
+      "groupName": "pre-commit-hooks",
+      "matchManagers": ["pre-commit"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "labels": ["dependencies", "pre-commit"],
+      "commitMessagePrefix": "chore(pre-commit):",
+      "automerge": true
+    },
+    {
+      "description": "Pre-commit major - manual review",
+      "matchManagers": ["pre-commit"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "pre-commit", "major-update"],
+      "commitMessagePrefix": "chore(pre-commit):",
+      "automerge": false
+    },
+
+    // =========================================
+    // Security-critical packages (priority)
+    // =========================================
+    {
+      "description": "Django - security priority",
+      "matchPackagePatterns": ["^django$"],
+      "labels": ["dependencies", "python", "security"],
+      "schedule": ["at any time"],
+      "prPriority": 10
+    }
+  ]
+}
