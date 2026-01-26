@@ -80,12 +80,29 @@ Scripts are in `scripts/containerManagement/`:
 
 ### Key Architecture Layers
 
-- **`core/services/`**: Business logic layer organized by domain (recipe, social, system notifications)
+- **`core/services/`**: Business logic layer organized by domain:
+  - `notification_service.py`: Base notification CRUD operations
+  - `recipe_notification_service.py`: Recipe-related notifications (published, liked, rated, etc.)
+  - `social_notification_service.py`: Social notifications (new follower, mentions)
+  - `system_notification_service.py`: System notifications (welcome, password reset, maintenance)
+  - `user_notification_service.py`: User-facing notification queries and templates
+  - `admin_service.py`: Admin operations (stats, retry management)
 - **`core/schemas/`**: Pydantic schemas for request/response validation
 - **`core/repositories/`**: Data access layer
 - **`core/jobs/`**: Django-RQ background jobs for async email sending
 - **`core/middleware/`**: Request ID, rate limiting, security headers
-- **`core/services/downstream/`**: Clients for external services
+- **`core/services/downstream/`**: Clients for external services (recipe-management-service, media-management-service)
+
+### Circular Import Warning
+
+Some services cannot be exported from `core/services/__init__.py` due to Django app initialization order. Import directly from the module:
+```python
+# Wrong - may cause circular import
+from core.services import notification_service
+
+# Correct - import directly from module
+from core.services.notification_service import notification_service
+```
 
 ### Background Job Processing
 
@@ -106,7 +123,7 @@ OAuth2 is optional and feature-flagged via `OAUTH2_SERVICE_ENABLED`, `OAUTH2_SER
 
 ### Database
 
-The service uses a shared PostgreSQL database. All models have `managed = False` - migrations are disabled. Key models: `Notification`, `User`, `UserFollow`.
+The service uses a shared PostgreSQL database. All models have `managed = False` - migrations are disabled. Key models: `Notification`, `User`, `UserFollow`, `Review`.
 
 ## Critical Development Rules
 
@@ -168,6 +185,25 @@ logger = structlog.get_logger(__name__)
 logger.info("event_description", key1="value1", key2="value2")
 ```
 
+### 7. IMPORT ORDERING
+Imports must follow this section order (enforced by ruff/isort):
+1. Future imports
+2. Standard library
+3. Django (`django`, `rest_framework`)
+4. Third-party packages
+5. First-party (`notification_service`, `core`)
+6. Local folder
+
+### 8. CONVENTIONAL COMMITS
+Commit messages must follow the Conventional Commits format (enforced by commitizen):
+```
+type(scope): description
+
+feat(notifications): add batch retry endpoint
+fix(email): handle SMTP timeout gracefully
+chore(deps): update django to v6
+```
+
 ## Environment Configuration
 
 Create `.env.local` from `.env.example` for local development. Key variables:
@@ -179,7 +215,7 @@ For Kubernetes: Environment variables are provided via ConfigMap and Secrets.
 
 ## Testing
 
-Tests are in `tests/` organized by type: `unit/`, `component/`, `dependency/`, `performance/`. Use pytest fixtures from `tests/conftest.py`.
+Tests are in `tests/` organized by type: `unit/`, `component/`, `dependency/`, `performance/`. Use pytest fixtures from `tests/conftest.py`. Factory Boy factories are in `tests/factories/`.
 
 ## Common Patterns
 
@@ -192,7 +228,7 @@ Tests are in `tests/` organized by type: `unit/`, `component/`, `dependency/`, `
 
 ### Adding a New Service
 1. Create service file in `core/services/`
-2. Export from `core/services/__init__.py`
+2. Export from `core/services/__init__.py` (only if no circular import risk)
 3. Follow dependency injection pattern
 
 ## Kubernetes
