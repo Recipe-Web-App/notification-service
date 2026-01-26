@@ -65,7 +65,7 @@ django-upgrade = "^1.15.0"
 coverage = "^7.13.1"
 
 # Commit messages
-commitizen = "^4.12.0"
+commitizen = "^4.12.1"
 
 [tool.poetry.group.test.dependencies]
 # Testing frameworks
