@@ -197,4 +197,4 @@ Tests are in `tests/` organized by type: `unit/`, `component/`, `dependency/`, `
 
 ## Kubernetes
 
-The service runs in namespace `notification-service` with ingress at `http://sous-chef-proxy.local/api/v1/notification/`. The RQ worker runs as a separate deployment.
+The service runs in namespace `notification-service` with Kong Gateway routing at `http://sous-chef-proxy.local/api/v1/notification/`. The RQ worker runs as a separate deployment.

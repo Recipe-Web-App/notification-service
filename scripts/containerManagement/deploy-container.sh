@@ -76,12 +76,7 @@ if ! minikube status >/dev/null 2>&1; then
   print_separator "-"
   echo -e "${YELLOW}🚀 Starting Minikube...${NC}"
   minikube start
-
-  if ! minikube addons list | grep -q 'ingress *enabled'; then
-    echo -e "${YELLOW}🔌 Enabling Minikube ingress addon...${NC}"
-    minikube addons enable ingress
-    print_status "ok" "Minikube started."
-  fi
+  print_status "ok" "Minikube started."
 else
   print_status "ok" "Minikube is already running."
 fi
@@ -157,12 +152,6 @@ print_separator "-"
 kubectl apply -f "${CONFIG_DIR}/networkpolicy.yaml"
 
 print_separator "="
-echo -e "${CYAN}📥 Applying Gateway HTTPRoute...${NC}"
-print_separator "-"
-
-kubectl apply -f "${CONFIG_DIR}/gateway-route.yaml"
-
-print_separator "="
 echo -e "${CYAN}⏳ Waiting for Notification Service pod to be ready...${NC}"
 print_separator "-"
 
@@ -195,13 +184,11 @@ POD_NAME=$(kubectl get pods -n "$NAMESPACE" -l app=notification-service -o jsonp
 SERVICE_JSON=$(kubectl get svc notification-service -n "$NAMESPACE" -o json)
 SERVICE_IP=$(echo "$SERVICE_JSON" | jq -r '.spec.clusterIP')
 SERVICE_PORT=$(echo "$SERVICE_JSON" | jq -r '.spec.ports[0].port')
-GATEWAY_HOSTS=$(kubectl get httproute -n "$NAMESPACE" -o jsonpath='{.items[*].spec.hostnames[*]}' | tr ' ' '\n' | sort -u | paste -sd ',' -)
 
 print_separator "="
 echo -e "${CYAN}🛰️  Access info:${NC}"
 echo "  Pod: $POD_NAME"
 echo "  Service: $SERVICE_IP:$SERVICE_PORT"
-echo "  Gateway Hosts: $GATEWAY_HOSTS"
 echo "  Readiness Check: http://sous-chef-proxy.local/api/v1/notification/health/ready"
 echo "  Liveness Check: http://sous-chef-proxy.local/api/v1/notification/health/live"
 print_separator "="
