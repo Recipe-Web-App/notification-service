@@ -221,7 +221,7 @@ Remove all Kubernetes resources:
 ### Accessing the Service
 
 After deployment, the service is accessible at:
-- **Ingress URL**: `http://sous-chef-proxy.local/api/v1/notification/`
+- **URL**: `http://sous-chef-proxy.local/api/v1/notification/`
 - **Health Checks**:
   - Readiness: `http://sous-chef-proxy.local/api/v1/notification/health/ready`
   - Liveness: `http://sous-chef-proxy.local/api/v1/notification/health/live`
@@ -232,7 +232,7 @@ The deployment includes:
 - **Namespace**: `notification-service`
 - **Deployment**: Django app with gunicorn (4 workers, 2 threads)
 - **Service**: ClusterIP on port 8000
-- **Ingress**: Routes `/api/v1/notification` to service
+- **Gateway**: Kong HTTPRoute for `/api/v1/notification`
 - **ConfigMap**: Database configuration
 - **Secret**: Database password
 - **NetworkPolicy**: Security policies for ingress/egress

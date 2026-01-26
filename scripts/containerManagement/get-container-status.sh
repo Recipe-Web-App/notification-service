@@ -180,22 +180,6 @@ fi
 
 print_separator
 echo ""
-echo -e "${CYAN}📥 Ingress Status:${NC}"
-if kubectl get ingress notification-service-ingress -n "$NAMESPACE" >/dev/null 2>&1; then
-    kubectl get ingress notification-service-ingress -n "$NAMESPACE"
-
-    INGRESS_IP=$(kubectl get ingress notification-service-ingress -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
-    if [ -n "$INGRESS_IP" ]; then
-        print_status "ok" "Ingress has IP: $INGRESS_IP"
-    else
-        print_status "warning" "Ingress IP not yet assigned"
-    fi
-else
-    print_status "error" "Ingress not found"
-fi
-
-print_separator
-echo ""
 echo -e "${CYAN}🔐 ConfigMap and Secret Status:${NC}"
 if kubectl get configmap notification-service-config -n "$NAMESPACE" >/dev/null 2>&1; then
     print_status "ok" "ConfigMap exists"
