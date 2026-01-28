@@ -52,7 +52,7 @@ repos:
   # Python Linting
   # ============================================================================
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.10
+    rev: v0.14.14
     hooks:
       - id: ruff-check
         args: [--fix]
@@ -124,7 +124,7 @@ repos:
   # Security Checks
   # ============================================================================
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.9.2
+    rev: 1.9.3
     hooks:
       - id: bandit
         args:
@@ -138,7 +138,7 @@ repos:
   # osv-scanner - dependency vulnerability scanner
   # Configuration: osv-scanner.toml (automatically discovered)
   - repo: https://github.com/google/osv-scanner
-    rev: v2.3.1
+    rev: v2.3.2
     hooks:
       - id: osv-scanner
         args: ["--lockfile=poetry.lock:poetry.lock"]
@@ -216,7 +216,7 @@ repos:
   # Commit Message Validation
   # ============================================================================
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.11.1
+    rev: v4.12.1
     hooks:
       - id: commitizen
         stages: [commit-msg]
