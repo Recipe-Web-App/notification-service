@@ -43,7 +43,7 @@ test-coverage = "tests.run_tests:run_coverage"
 pre-commit = "^4.5.1"
 
 # Linting and Formatting
-ruff = "^0.14.13"
+ruff = "^0.14.14"
 isort = "^7.0.0"
 
 # Type Checking
