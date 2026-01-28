@@ -80,7 +80,7 @@ faker = "^40.1.2"
 # HTTP mocking
 requests = "^2.32.5"
 responses = "^0.25.8"
-requests-mock = "^1.11.0"
+requests-mock = "^1.12.1"
 
 # Time control
 freezegun = "^1.4.0"
