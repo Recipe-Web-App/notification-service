@@ -62,7 +62,7 @@ bandit = {extras = ["toml"], version = "^1.9.3"}
 django-upgrade = "^1.15.0"
 
 # Coverage
-coverage = "^7.13.1"
+coverage = "^7.13.2"
 
 # Commit messages
 commitizen = "^4.12.1"
