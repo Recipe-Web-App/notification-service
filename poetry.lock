@@ -673,6 +673,22 @@ files = [
 toml = ["tomli ; python_full_version <= \"3.11.0a6\""]
 
 [[package]]
+name = "croniter"
+version = "6.0.0"
+description = "croniter provides iteration for datetime object with cron like format"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,>=2.6"
+groups = ["main"]
+files = [
+    {file = "croniter-6.0.0-py2.py3-none-any.whl", hash = "sha256:2f878c3856f17896979b2a4379ba1f09c83e374931ea15cc835c5dd2eee9b368"},
+    {file = "croniter-6.0.0.tar.gz", hash = "sha256:37c504b313956114a983ece2c2b07790b1f1094fe9d81cc94739214748255577"},
+]
+
+[package.dependencies]
+python-dateutil = "*"
+pytz = ">2021.1"
+
+[[package]]
 name = "cryptography"
 version = "46.0.4"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
@@ -844,24 +860,25 @@ hiredis = ["redis[hiredis] (>=3,!=4.0.0,!=4.0.1)"]
 
 [[package]]
 name = "django-rq"
-version = "2.10.3"
+version = "3.2.2"
 description = "An app that provides django integration for RQ (Redis Queue)"
 optional = false
-python-versions = "*"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "django-rq-2.10.3.tar.gz", hash = "sha256:572f2e142a4e4a2f68b3601eef6ddfb041c470dfc7028c975981f7bb942e184c"},
-    {file = "django_rq-2.10.3-py2.py3-none-any.whl", hash = "sha256:f73da09708caf4abc4b16800acf762a00e59885eb8f7a94a83bf06ee2a40b26b"},
+    {file = "django_rq-3.2.2-py3-none-any.whl", hash = "sha256:f3808d014a0943774b9425fd1f68366cef23945635b2cf333afcf97af7a3b67d"},
+    {file = "django_rq-3.2.2.tar.gz", hash = "sha256:2eaac4e05092895ec09b6da978e5ae9fafc917574934bb2db1bebf1b3395c049"},
 ]
 
 [package.dependencies]
-django = ">=3.2"
-redis = ">=3"
-rq = ">=1.14,<2.0"
+django = ">=4.2"
+redis = ">=3.5"
+rq = ">=2.6.1"
 
 [package.extras]
-sentry = ["raven (>=6.1.0)"]
-testing = ["mock (>=2.0.0)"]
+prometheus = ["prometheus-client (>=0.4.0)"]
+sentry = ["sentry-sdk (>=1.0.0)"]
+testing = ["pytest (>=7.0)", "pytest-django (>=4.5)"]
 
 [[package]]
 name = "django-stubs"
@@ -2499,7 +2516,7 @@ version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3"},
     {file = "python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"},
@@ -2567,6 +2584,18 @@ asyncio-client = ["aiohttp (>=3.4)"]
 client = ["requests (>=2.21.0)", "websocket-client (>=0.54.0)"]
 dev = ["tox"]
 docs = ["sphinx"]
+
+[[package]]
+name = "pytz"
+version = "2025.2"
+description = "World timezone definitions, modern and historical"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pytz-2025.2-py2.py3-none-any.whl", hash = "sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00"},
+    {file = "pytz-2025.2.tar.gz", hash = "sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3"},
+]
 
 [[package]]
 name = "pywin32"
@@ -2901,19 +2930,20 @@ jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
 name = "rq"
-version = "1.16.2"
+version = "2.6.1"
 description = "RQ is a simple, lightweight, library for creating background jobs, and processing them."
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "rq-1.16.2-py3-none-any.whl", hash = "sha256:52e619f6cb469b00e04da74305045d244b75fecb2ecaa4f26422add57d3c5f09"},
-    {file = "rq-1.16.2.tar.gz", hash = "sha256:5c5b9ad5fbaf792b8fada25cc7627f4d206a9a4455aced371d4f501cc3f13b34"},
+    {file = "rq-2.6.1-py3-none-any.whl", hash = "sha256:5cc88d3bb5263a407fb2ba2dc6fe8dc710dae94b6f74396cdfe1b32beded9408"},
+    {file = "rq-2.6.1.tar.gz", hash = "sha256:db5c0d125ac9dbd4438f9a5225ea3e64050542b416fd791d424e2ab5b2853289"},
 ]
 
 [package.dependencies]
 click = ">=5"
-redis = ">=3.5"
+croniter = "*"
+redis = ">=3.5,<6 || >6"
 
 [[package]]
 name = "ruff"
@@ -2987,7 +3017,7 @@ version = "1.17.0"
 description = "Python 2 and 3 compatibility utilities"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"},
     {file = "six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81"},
@@ -3455,4 +3485,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~=3.14"
-content-hash = "6e2643ac56cbd081fd456c6dd4c5d8c5b31ad146e5301dc4655ae2931fe9a254"
+content-hash = "86ceba4576fcffb19215f0bd40fd9c24e5ac8971b54a3b73b43e14e7162032e8"
