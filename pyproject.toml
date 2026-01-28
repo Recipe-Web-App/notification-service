@@ -92,7 +92,7 @@ django-test-migrations = "^1.3.0"
 locust = "^2.43.1"
 
 # AWS/SQS mocking (for LocalStack)
-boto3 = "^1.42.34"
+boto3 = "^1.42.36"
 moto = {extras = ["sqs", "s3"], version = "^5.1.20"}
 
 # ============================================================================
