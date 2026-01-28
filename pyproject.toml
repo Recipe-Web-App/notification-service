@@ -48,7 +48,7 @@ isort = "^7.0.0"
 
 # Type Checking
 mypy = "^1.19.1"
-django-stubs = "^5.2.8"
+django-stubs = "^5.2.9"
 djangorestframework-stubs = "^3.16.7"
 types-requests = "^2.32.4"
 
