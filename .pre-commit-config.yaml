@@ -141,8 +141,8 @@ repos:
     rev: v2.3.2
     hooks:
       - id: osv-scanner
-        args: ["--lockfile=poetry.lock:poetry.lock"]
-        files: ^(poetry\.lock|osv-scanner\.toml)$
+        args: ["--lockfile=uv.lock:uv.lock"]
+        files: ^(uv\.lock|osv-scanner\.toml)$
 
   # ============================================================================
   # Python Modernization
@@ -165,23 +165,16 @@ repos:
         exclude: ^(migrations/)
 
   # ============================================================================
-  # Poetry/Dependency Checks
+  # uv/Dependency Checks
   # ============================================================================
   - repo: local
     hooks:
-      - id: poetry-check
-        name: poetry check
-        entry: poetry check
+      - id: uv-lock-check
+        name: uv lock check
+        entry: uv lock --check
         language: system
         pass_filenames: false
-        files: pyproject.toml
-
-      - id: poetry-lock-check
-        name: poetry lock check
-        entry: poetry check --lock
-        language: system
-        pass_filenames: false
-        files: ^(pyproject.toml|poetry.lock)$
+        files: ^(pyproject\.toml|uv\.lock)$
 
   # ============================================================================
   # Infrastructure & DevOps
@@ -235,9 +228,8 @@ ci:
   autoupdate_commit_msg: "chore(pre-commit-ci): pre-commit autoupdate"
   autoupdate_schedule: weekly
   skip:
-    # Skip local hooks - these require Poetry to be installed
-    - poetry-check
-    - poetry-lock-check
+    # Skip local hooks - these require uv to be installed
+    - uv-lock-check
     # Skip infrastructure checks that may need specific binaries
     - kube-linter
   submodules: false
