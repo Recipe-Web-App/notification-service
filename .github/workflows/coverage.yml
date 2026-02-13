@@ -29,39 +29,30 @@ jobs:
       with:
         fetch-depth: 2  # Need two commits for diff
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        cache: 'pip'
-
-    - name: Install Poetry
-      run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Configure Poetry
-      run: |
-        poetry config virtualenvs.create true
-        poetry config virtualenvs.in-project true
 
     - name: Install dependencies
-      run: poetry install --no-interaction
-
-    - name: Install coverage tool
-      run: poetry add --group dev coverage --no-interaction
+      run: uv sync --frozen
 
     - name: Run tests with coverage
       run: |
-        poetry run coverage run --source='.' manage.py test --no-input
-        poetry run coverage report
-        poetry run coverage xml
-        poetry run coverage html
+        uv run coverage run --source='.' manage.py test --no-input
+        uv run coverage report
+        uv run coverage xml
+        uv run coverage html
 
     - name: Calculate coverage percentage
       id: coverage
       run: |
-        COVERAGE=$(poetry run coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
+        COVERAGE=$(uv run coverage report | grep TOTAL | awk '{print $4}' | sed 's/%//')
         echo "coverage=${COVERAGE}" >> $GITHUB_OUTPUT
         echo "Current coverage: ${COVERAGE}%"
 
