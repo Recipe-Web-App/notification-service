@@ -157,7 +157,7 @@
     "**/*.egg-info": true,
     "**/.venv": true,
     "**/venv": true,
-    "**/poetry.lock": true,
+    "**/uv.lock": true,
     "**/db.sqlite3": true
   },
 

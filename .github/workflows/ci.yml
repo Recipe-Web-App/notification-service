@@ -30,57 +30,36 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        cache: 'pip'
-
-    - name: Install Poetry
-      run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Configure Poetry
-      run: |
-        poetry config virtualenvs.create true
-        poetry config virtualenvs.in-project true
-
-    - name: Cache Poetry dependencies
-      uses: actions/cache@v5
-      with:
-        path: .venv
-        key: venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
-        restore-keys: |
-          venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-
 
     - name: Install dependencies
-      run: poetry install --no-interaction --no-root
-
-    - name: Install project
-      run: poetry install --no-interaction
+      run: uv sync --frozen
 
     - name: Run Django checks
-      run: poetry run python manage.py check
+      run: uv run python manage.py check
 
     - name: Check for missing migrations
-      run: poetry run python manage.py makemigrations --check --dry-run --no-input
+      run: uv run python manage.py makemigrations --check --dry-run --no-input
 
     - name: Run migrations
-      run: poetry run python manage.py migrate --no-input
+      run: uv run python manage.py migrate --no-input
 
     - name: Run tests with coverage
-      run: poetry run python manage.py test --no-input --verbosity=2
+      run: uv run python manage.py test --no-input --verbosity=2
       env:
         DJANGO_SETTINGS_MODULE: notification_service.settings
 
-    - name: Install security tools
-      run: |
-        poetry add --group dev bandit safety --no-interaction
-
     - name: Run bandit security scanner
       continue-on-error: true
-      run: poetry run bandit -r notification_service/ core/ -f sarif -o bandit-results.sarif
+      run: uv run bandit -r notification_service/ core/ -f sarif -o bandit-results.sarif
 
     - name: Upload bandit SARIF results
       uses: github/codeql-action/upload-sarif@v4
@@ -98,31 +77,28 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        cache: 'pip'
 
-    - name: Install Poetry
-      run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+    - name: Install dependencies
+      run: uv sync --frozen
 
-    - name: Install linting tools
-      run: |
-        poetry add --group dev black flake8 mypy django-stubs --no-interaction
-        poetry install --no-interaction
+    - name: Run ruff format check
+      run: uv run ruff format --check .
 
-    - name: Run black (code formatter check)
-      run: poetry run black --check .
-
-    - name: Run flake8 (linter)
-      run: poetry run flake8 notification_service/ core/ --max-line-length=120 --extend-ignore=E203,W503
+    - name: Run ruff check (linter)
+      run: uv run ruff check notification_service/ core/
 
     - name: Run mypy (type checker)
       continue-on-error: true
-      run: poetry run mypy notification_service/ core/ --ignore-missing-imports
+      run: uv run mypy notification_service/ core/ --ignore-missing-imports
 
   docker-build:
     name: Docker Build Test

@@ -1,4 +1,4 @@
-"""Test runner scripts for poetry commands."""
+"""Test runner scripts for uv commands."""
 
 import subprocess
 import sys

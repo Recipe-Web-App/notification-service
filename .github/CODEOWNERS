@@ -10,7 +10,7 @@
 
 # Configuration files
 pyproject.toml @jsamuelsen11
-poetry.lock @jsamuelsen11
+uv.lock @jsamuelsen11
 manage.py @jsamuelsen11
 
 # Docker files

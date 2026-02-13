@@ -3,7 +3,7 @@
 # Dependencies
 dependencies:
   - pyproject.toml
-  - poetry.lock
+  - uv.lock
   - requirements.txt
   - requirements*.txt
 

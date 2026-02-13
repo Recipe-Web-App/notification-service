@@ -135,26 +135,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
         python-version: '3.14'
-        cache: 'pip'
-
-    - name: Install Poetry
-      run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Install dependencies
-      run: poetry install --no-interaction
+      run: uv sync --frozen
 
     - name: Install safety
-      run: poetry add --group dev safety --no-interaction
+      run: uv add --group dev safety
 
     - name: Run safety check
       continue-on-error: true
-      run: poetry run safety check --json
+      run: uv run safety check --json
 
   sbom:
     name: Generate SBOM

@@ -577,16 +577,16 @@ class TestBatchNotifications(TestCase):
 
 ```bash
 # Run all component tests
-poetry run test-component
+uv run test-component
 
 # Run specific test file
-poetry run pytest tests/component/test_notification_endpoints.py -v
+uv run pytest tests/component/test_notification_endpoints.py -v
 
 # Run with verbose output
-poetry run pytest tests/component/ -v
+uv run pytest tests/component/ -v
 
 # Run with coverage
-poetry run pytest tests/component/ --cov=core --cov-report=term-missing
+uv run pytest tests/component/ --cov=core --cov-report=term-missing
 ```
 
 ## Coverage Goals

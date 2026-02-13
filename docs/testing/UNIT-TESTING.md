@@ -357,19 +357,19 @@ class TestEmailValidation(unittest.TestCase):
 
 ```bash
 # Run all unit tests
-poetry run test-unit
+uv run test-unit
 
 # Run specific test file
-poetry run pytest tests/unit/test_validators.py -v
+uv run pytest tests/unit/test_validators.py -v
 
 # Run specific test class
-poetry run pytest tests/unit/test_validators.py::TestEmailValidator -v
+uv run pytest tests/unit/test_validators.py::TestEmailValidator -v
 
 # Run specific test method
-poetry run pytest tests/unit/test_validators.py::TestEmailValidator::test_validate_with_valid_email_returns_true -v
+uv run pytest tests/unit/test_validators.py::TestEmailValidator::test_validate_with_valid_email_returns_true -v
 
 # Run with verbose output
-poetry run pytest tests/unit/ -v
+uv run pytest tests/unit/ -v
 ```
 
 ## Coverage
@@ -378,10 +378,10 @@ Unit tests should achieve high coverage for the code they test:
 
 ```bash
 # Run with coverage
-poetry run test-coverage
+uv run test-coverage
 
 # Run unit tests with coverage for specific module
-poetry run pytest tests/unit/ --cov=core.utils --cov-report=term-missing
+uv run pytest tests/unit/ --cov=core.utils --cov-report=term-missing
 ```
 
 Aim for:
