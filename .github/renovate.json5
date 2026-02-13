@@ -53,7 +53,7 @@
       description: 'Group Python patch updates',
       groupName: 'python-patch-updates',
       matchManagers: [
-        'poetry',
+        'uv',
         'pip_requirements',
       ],
       matchUpdateTypes: [
@@ -73,7 +73,7 @@
       description: 'Group Python dev patch updates',
       groupName: 'python-patch-updates',
       matchManagers: [
-        'poetry',
+        'uv',
         'pip_requirements',
       ],
       matchUpdateTypes: [
@@ -93,7 +93,7 @@
       description: 'Group Python minor updates (production)',
       groupName: 'python-minor-updates',
       matchManagers: [
-        'poetry',
+        'uv',
         'pip_requirements',
       ],
       matchUpdateTypes: [
@@ -113,7 +113,7 @@
       description: 'Group Python dev minor updates',
       groupName: 'python-minor-updates',
       matchManagers: [
-        'poetry',
+        'uv',
         'pip_requirements',
       ],
       matchUpdateTypes: [
@@ -132,7 +132,7 @@
     {
       description: 'Python major updates - manual review',
       matchManagers: [
-        'poetry',
+        'uv',
         'pip_requirements',
       ],
       matchUpdateTypes: [
@@ -151,7 +151,7 @@
     },
     {
       matchManagers: [
-        'poetry',
+        'uv',
         'pip_requirements',
       ],
       rangeStrategy: 'bump',

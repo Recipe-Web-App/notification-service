@@ -97,7 +97,7 @@ Fixes #
 
 <!-- Describe manual testing performed -->
 
-- [ ] Tested locally with Poetry
+- [ ] Tested locally with uv
 - [ ] Tested in Docker container
 - [ ] Tested API endpoints manually
 - [ ] Tested with sample data
@@ -149,11 +149,11 @@ Fixes #
 <!-- Complete before requesting review -->
 
 - [ ] Code follows project style guidelines
-- [ ] Pre-commit hooks pass (`poetry run pre-commit run --all-files`)
+- [ ] Pre-commit hooks pass (`uv run pre-commit run --all-files`)
 - [ ] Linting passes (`ruff check`)
 - [ ] Type checking passes (`mypy`)
 - [ ] Tests added for new functionality
-- [ ] All tests passing (`poetry run test-all`)
+- [ ] All tests passing (`uv run test-all`)
 - [ ] Documentation updated
 - [ ] Commit messages follow conventional commits
 - [ ] PR title is clear and descriptive
