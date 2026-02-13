@@ -27,7 +27,7 @@ When you open this project in VS Code, you'll be prompted to install recommended
 
 1. Press `Cmd/Ctrl + Shift + P`
 2. Type "Python: Select Interpreter"
-3. Choose the Poetry virtual environment (`.venv/bin/python`)
+3. Choose the uv virtual environment (`.venv/bin/python`)
 
 ### 3. Run the Development Server
 
@@ -107,9 +107,9 @@ Access tasks via `Cmd/Ctrl + Shift + P` → "Tasks: Run Task"
 - Docker: Rebuild
 
 ### Dependency Tasks
-- Poetry: Install Dependencies
-- Poetry: Update Dependencies
-- Poetry: Show Outdated
+- uv: Sync Dependencies
+- uv: Update Dependencies
+- uv: Show Outdated
 
 ## Code Snippets
 
@@ -208,7 +208,7 @@ Add custom tasks to `.vscode/tasks.json` under the `tasks` array.
 ## Troubleshooting
 
 ### Python Interpreter Not Found
-1. Ensure Poetry virtual environment is created: `poetry install`
+1. Ensure uv virtual environment is created: `uv sync`
 2. Reload VS Code window: `Cmd/Ctrl + Shift + P` → "Developer: Reload Window"
 3. Manually select interpreter: `Cmd/Ctrl + Shift + P` → "Python: Select Interpreter"
 
@@ -218,7 +218,7 @@ Add custom tasks to `.vscode/tasks.json` under the `tasks` array.
 3. Verify `pyproject.toml` exists with Ruff configuration
 
 ### Tests Not Discovered
-1. Ensure pytest is installed: `poetry install --with test`
+1. Ensure pytest is installed: `uv sync --group test`
 2. Reload tests: Test Explorer → Refresh button
 3. Check Python Test Log: Output panel → "Python Test Log"
 

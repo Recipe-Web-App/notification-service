@@ -9,7 +9,7 @@
     {
       "label": "Django: Run Local Server",
       "type": "shell",
-      "command": "poetry run python run_local.py",
+      "command": "uv run python run_local.py",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -28,7 +28,7 @@
     {
       "label": "Django: Run Server",
       "type": "shell",
-      "command": "poetry run python manage.py runserver",
+      "command": "uv run python manage.py runserver",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -47,7 +47,7 @@
     {
       "label": "Django: Shell",
       "type": "shell",
-      "command": "poetry run python manage.py shell",
+      "command": "uv run python manage.py shell",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -66,7 +66,7 @@
     {
       "label": "Django: Make Migrations",
       "type": "shell",
-      "command": "poetry run python manage.py makemigrations",
+      "command": "uv run python manage.py makemigrations",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -85,7 +85,7 @@
     {
       "label": "Django: Migrate",
       "type": "shell",
-      "command": "poetry run python manage.py migrate",
+      "command": "uv run python manage.py migrate",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -104,7 +104,7 @@
     {
       "label": "Django: Show Migrations",
       "type": "shell",
-      "command": "poetry run python manage.py showmigrations",
+      "command": "uv run python manage.py showmigrations",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -123,7 +123,7 @@
     {
       "label": "Test: Run All Tests",
       "type": "shell",
-      "command": "poetry run pytest tests -v --tb=short",
+      "command": "uv run pytest tests -v --tb=short",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -142,7 +142,7 @@
     {
       "label": "Test: Unit Tests",
       "type": "shell",
-      "command": "poetry run pytest tests/unit -v --tb=short",
+      "command": "uv run pytest tests/unit -v --tb=short",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -161,7 +161,7 @@
     {
       "label": "Test: Component Tests",
       "type": "shell",
-      "command": "poetry run pytest tests/component -v --tb=short",
+      "command": "uv run pytest tests/component -v --tb=short",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -180,7 +180,7 @@
     {
       "label": "Test: Dependency Tests",
       "type": "shell",
-      "command": "poetry run pytest tests/dependency -v --tb=short",
+      "command": "uv run pytest tests/dependency -v --tb=short",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -199,7 +199,7 @@
     {
       "label": "Test: Performance Tests",
       "type": "shell",
-      "command": "poetry run locust -f tests/performance/locustfile_notifications.py --headless",
+      "command": "uv run locust -f tests/performance/locustfile_notifications.py --headless",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -218,7 +218,7 @@
     {
       "label": "Test: With Coverage",
       "type": "shell",
-      "command": "poetry run pytest tests --cov=. --cov-report=html --cov-report=term -v",
+      "command": "uv run pytest tests --cov=. --cov-report=html --cov-report=term -v",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -255,7 +255,7 @@
     {
       "label": "Lint: Ruff Check",
       "type": "shell",
-      "command": "poetry run ruff check . --config pyproject.toml",
+      "command": "uv run ruff check . --config pyproject.toml",
       "problemMatcher": {
         "owner": "python",
         "fileLocation": ["relative", "${workspaceFolder}"],
@@ -285,7 +285,7 @@
     {
       "label": "Lint: Ruff Fix",
       "type": "shell",
-      "command": "poetry run ruff check . --fix --config pyproject.toml",
+      "command": "uv run ruff check . --fix --config pyproject.toml",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -304,7 +304,7 @@
     {
       "label": "Format: Ruff Format",
       "type": "shell",
-      "command": "poetry run ruff format . --config pyproject.toml",
+      "command": "uv run ruff format . --config pyproject.toml",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -323,7 +323,7 @@
     {
       "label": "Format: isort",
       "type": "shell",
-      "command": "poetry run isort . --settings-path pyproject.toml",
+      "command": "uv run isort . --settings-path pyproject.toml",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -338,7 +338,7 @@
     {
       "label": "Type Check: mypy",
       "type": "shell",
-      "command": "poetry run mypy . --config-file pyproject.toml",
+      "command": "uv run mypy . --config-file pyproject.toml",
       "problemMatcher": {
         "owner": "python",
         "fileLocation": ["relative", "${workspaceFolder}"],
@@ -367,7 +367,7 @@
     {
       "label": "Security: Bandit",
       "type": "shell",
-      "command": "poetry run bandit -c pyproject.toml -r .",
+      "command": "uv run bandit -c pyproject.toml -r .",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -385,7 +385,7 @@
     {
       "label": "Pre-commit: Run All Hooks",
       "type": "shell",
-      "command": "poetry run pre-commit run --all-files",
+      "command": "uv run pre-commit run --all-files",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -492,9 +492,9 @@
     // Dependency Management
     // ========================================================================
     {
-      "label": "Poetry: Install Dependencies",
+      "label": "uv: Sync Dependencies",
       "type": "shell",
-      "command": "poetry install",
+      "command": "uv sync",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -510,9 +510,9 @@
       }
     },
     {
-      "label": "Poetry: Update Dependencies",
+      "label": "uv: Update Dependencies",
       "type": "shell",
-      "command": "poetry update",
+      "command": "uv lock --upgrade && uv sync",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -524,9 +524,9 @@
       }
     },
     {
-      "label": "Poetry: Show Outdated",
+      "label": "uv: Show Outdated",
       "type": "shell",
-      "command": "poetry show --outdated",
+      "command": "uv pip list --outdated",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
