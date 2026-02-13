@@ -65,53 +65,53 @@ tests/
 
 ```bash
 # Run all tests
-poetry run test-all
+uv run test-all
 
 # Run specific test types
-poetry run test-unit
-poetry run test-component
-poetry run test-dependency
-poetry run test-performance
+uv run test-unit
+uv run test-component
+uv run test-dependency
+uv run test-performance
 
 # Run with coverage report
-poetry run test-coverage
+uv run test-coverage
 ```
 
 ### Detailed Test Execution
 
 #### Unit Tests
 ```bash
-poetry run test-unit
+uv run test-unit
 ```
 Fast tests for pure functions and isolated logic. Should complete in seconds.
 
 #### Component Tests
 ```bash
-poetry run test-component
+uv run test-component
 ```
 Tests business logic with all external dependencies mocked. Should complete in under a minute.
 
 #### Dependency Tests
 ```bash
-poetry run test-dependency
+uv run test-dependency
 ```
 Integration tests with real external services (database, message queues, etc.). Requires Docker.
 
 #### Performance Tests
 ```bash
-poetry run test-performance
+uv run test-performance
 ```
 Runs Locust load tests against the service. Generates performance reports.
 
 #### All Tests
 ```bash
-poetry run test-all
+uv run test-all
 ```
 Runs unit, component, and dependency tests in sequence. Performance tests run separately.
 
 #### Coverage Reports
 ```bash
-poetry run test-coverage
+uv run test-coverage
 ```
 Runs all tests with coverage tracking and generates an HTML report in `htmlcov/`.
 

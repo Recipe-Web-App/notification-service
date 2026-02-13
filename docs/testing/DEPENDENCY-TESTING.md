@@ -541,16 +541,16 @@ class TestWithFactories(TestCase):
 
 ```bash
 # Run all dependency tests
-poetry run test-dependency
+uv run test-dependency
 
 # Run specific test file
-poetry run pytest tests/dependency/test_database_operations.py -v
+uv run pytest tests/dependency/test_database_operations.py -v
 
 # Run with test containers (automatic)
-poetry run test-dependency
+uv run test-dependency
 
 # Run specific integration
-poetry run pytest tests/dependency/test_auth_service.py -v
+uv run pytest tests/dependency/test_auth_service.py -v
 ```
 
 ## Environment Configuration

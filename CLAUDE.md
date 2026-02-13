@@ -12,47 +12,47 @@ A Django-based notification service API for a recipe web app ecosystem. This ser
 
 ### Environment Setup
 ```bash
-poetry install
-poetry run pre-commit install
-poetry run pre-commit install --hook-type commit-msg
+uv sync
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 ```
 
 ### Running Locally
 ```bash
 # Start development server
-poetry run local
+uv run local
 
 # Start RQ worker (required for email sending)
-poetry run python -m django_rq.management.commands.rqworker default
+uv run python -m django_rq.management.commands.rqworker default
 ```
 
 ### Testing
 ```bash
 # All tests
-poetry run test-all
+uv run test-all
 
 # Specific test suites
-poetry run test-unit
-poetry run test-component
-poetry run test-dependency
-poetry run test-performance
+uv run test-unit
+uv run test-component
+uv run test-dependency
+uv run test-performance
 
 # Run a single test file
-poetry run pytest tests/unit/test_notification_service.py -v
+uv run pytest tests/unit/test_notification_service.py -v
 
 # Run a specific test function
-poetry run pytest tests/unit/test_notification_service.py::TestNotificationService::test_create_notification -v
+uv run pytest tests/unit/test_notification_service.py::TestNotificationService::test_create_notification -v
 
 # With coverage
-poetry run test-coverage
+uv run test-coverage
 ```
 
 ### Linting and Formatting
 ```bash
-poetry run ruff check core/ --fix    # Lint with auto-fix
-poetry run ruff format core/          # Format code
-poetry run mypy core/                 # Type check
-poetry run pre-commit run --all-files # Run all pre-commit hooks
+uv run ruff check core/ --fix    # Lint with auto-fix
+uv run ruff format core/          # Format code
+uv run mypy core/                 # Type check
+uv run pre-commit run --all-files # Run all pre-commit hooks
 ```
 
 ### Kubernetes Deployment
@@ -115,7 +115,7 @@ Email sending is async via Django-RQ:
 5. On failure: Retry with exponential backoff (5min, 10min, 20min)
 6. After 3 failures: status → `FAILED`, `error_message` set
 
-**Important**: The RQ worker MUST be running for emails to be sent. Use `poetry run python -m django_rq.management.commands.rqworker default` in development.
+**Important**: The RQ worker MUST be running for emails to be sent. Use `uv run python -m django_rq.management.commands.rqworker default` in development.
 
 ### Authentication & Security
 

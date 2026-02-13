@@ -375,16 +375,16 @@ def on_quitting(environment, **kwargs):
 
 ```bash
 # Run performance tests locally
-poetry run test-performance
+uv run test-performance
 
 # Run specific locustfile
-poetry run locust -f tests/performance/locustfile_notifications.py --host=http://localhost:8000
+uv run locust -f tests/performance/locustfile_notifications.py --host=http://localhost:8000
 
 # Run with web UI (access at http://localhost:8089)
-poetry run locust -f tests/performance/locustfile_notifications.py --host=http://localhost:8000
+uv run locust -f tests/performance/locustfile_notifications.py --host=http://localhost:8000
 
 # Run headless (no UI) with specific parameters
-poetry run locust -f tests/performance/locustfile_notifications.py \
+uv run locust -f tests/performance/locustfile_notifications.py \
     --host=http://localhost:8000 \
     --users 100 \
     --spawn-rate 10 \
@@ -392,7 +392,7 @@ poetry run locust -f tests/performance/locustfile_notifications.py \
     --headless
 
 # Run and generate HTML report
-poetry run locust -f tests/performance/locustfile_notifications.py \
+uv run locust -f tests/performance/locustfile_notifications.py \
     --host=http://localhost:8000 \
     --users 100 \
     --spawn-rate 10 \
@@ -405,7 +405,7 @@ poetry run locust -f tests/performance/locustfile_notifications.py \
 
 ```bash
 # Run baseline performance test
-poetry run locust -f tests/performance/locustfile_notifications.py \
+uv run locust -f tests/performance/locustfile_notifications.py \
     --host=https://staging.example.com \
     --users 50 \
     --spawn-rate 5 \
@@ -414,7 +414,7 @@ poetry run locust -f tests/performance/locustfile_notifications.py \
     --csv=tests/performance/results/baseline
 
 # Run regression test (compare against baseline)
-poetry run python tests/performance/compare_results.py \
+uv run python tests/performance/compare_results.py \
     --baseline tests/performance/results/baseline \
     --current tests/performance/results/current
 ```
@@ -425,7 +425,7 @@ poetry run python tests/performance/compare_results.py \
 Establish performance baseline with normal load.
 
 ```bash
-poetry run locust -f tests/performance/locustfile_notifications.py \
+uv run locust -f tests/performance/locustfile_notifications.py \
     --host=http://localhost:8000 \
     --users 50 \
     --spawn-rate 5 \
@@ -443,7 +443,7 @@ poetry run locust -f tests/performance/locustfile_notifications.py \
 Test with expected production load.
 
 ```bash
-poetry run locust -f tests/performance/locustfile_notifications.py \
+uv run locust -f tests/performance/locustfile_notifications.py \
     --host=http://localhost:8000 \
     --users 200 \
     --spawn-rate 10 \
@@ -460,7 +460,7 @@ poetry run locust -f tests/performance/locustfile_notifications.py \
 Find breaking point by increasing load until failure.
 
 ```bash
-poetry run locust -f tests/performance/locustfile_stress.py \
+uv run locust -f tests/performance/locustfile_stress.py \
     --host=http://localhost:8000 \
     --users 1000 \
     --spawn-rate 50 \
@@ -475,7 +475,7 @@ Test ability to handle sudden traffic spikes.
 
 ```bash
 # Use custom load shape
-poetry run locust -f tests/performance/locustfile_notifications.py \
+uv run locust -f tests/performance/locustfile_notifications.py \
     --host=http://localhost:8000 \
     --headless
 ```
@@ -489,7 +489,7 @@ poetry run locust -f tests/performance/locustfile_notifications.py \
 Test stability over extended period.
 
 ```bash
-poetry run locust -f tests/performance/locustfile_notifications.py \
+uv run locust -f tests/performance/locustfile_notifications.py \
     --host=http://localhost:8000 \
     --users 100 \
     --spawn-rate 5 \

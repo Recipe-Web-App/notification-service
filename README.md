@@ -5,7 +5,7 @@ A Django-based notification service API for the recipe web app.
 ## Prerequisites
 
 - Python 3.14
-- Poetry
+- uv
 - Docker (for containerized deployment)
 - Minikube & kubectl (for Kubernetes deployment)
 
@@ -13,13 +13,13 @@ A Django-based notification service API for the recipe web app.
 
 1. Install dependencies:
 ```bash
-poetry install
+uv sync
 ```
 
 2. Set up pre-commit hooks:
 ```bash
-poetry run pre-commit install
-poetry run pre-commit install --hook-type commit-msg
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 ```
 
 3. Configure environment:
@@ -34,7 +34,7 @@ cp .env.example .env.local
 
 Start the development server:
 ```bash
-poetry run local
+uv run local
 ```
 
 The server will start at `http://localhost:8000`
@@ -43,7 +43,7 @@ The server will start at `http://localhost:8000`
 
 For production-like environment:
 ```bash
-poetry run gunicorn notification_service.wsgi:application --bind 0.0.0.0:8000 --workers 4
+uv run gunicorn notification_service.wsgi:application --bind 0.0.0.0:8000 --workers 4
 ```
 
 ## Features
@@ -81,7 +81,7 @@ For email notifications to be sent, you must run the RQ worker:
 
 ```bash
 # Development
-poetry run python -m django_rq.management.commands.rqworker default
+uv run python -m django_rq.management.commands.rqworker default
 
 # Docker Compose (automatic)
 docker-compose up rq-worker
@@ -251,22 +251,22 @@ This project uses pre-commit hooks for code quality. See `.pre-commit-setup.md` 
 
 Install hooks:
 ```bash
-poetry run pre-commit install
-poetry run pre-commit install --hook-type commit-msg
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 ```
 
 ### Running Tests
 
 ```bash
 # All tests
-poetry run test-all
+uv run test-all
 
 # Unit tests
-poetry run test-unit
+uv run test-unit
 
 # Component tests
-poetry run test-component
+uv run test-component
 
 # Performance tests
-poetry run test-performance
+uv run test-performance
 ```

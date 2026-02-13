@@ -11,7 +11,7 @@ This project adheres to a [Code of Conduct](CODE_OF_CONDUCT.md). By participatin
 ### Prerequisites
 
 - Python 3.14+
-- Poetry (for dependency management)
+- uv (for dependency management)
 - Git
 - Docker (optional, for containerized development)
 
@@ -27,14 +27,14 @@ cd notification-service
 2. **Install dependencies**
 
 ```bash
-poetry install
+uv sync
 ```
 
 3. **Set up pre-commit hooks** (required)
 
 ```bash
-poetry run pre-commit install
-poetry run pre-commit install --hook-type commit-msg
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg
 ```
 
 4. **Configure environment**
@@ -48,10 +48,10 @@ cp .env.example .env.local
 
 ```bash
 # Start the Django server
-poetry run local
+uv run local
 
 # In a separate terminal, start the RQ worker (required for email sending)
-poetry run python -m django_rq.management.commands.rqworker default
+uv run python -m django_rq.management.commands.rqworker default
 ```
 
 The server will start at `http://localhost:8000`
@@ -96,10 +96,10 @@ Pre-commit hooks handle formatting and linting automatically. The key tools are:
 ### Manual Commands
 
 ```bash
-poetry run ruff check core/ --fix    # Lint with auto-fix
-poetry run ruff format core/          # Format code
-poetry run mypy core/                 # Type check
-poetry run pre-commit run --all-files # Run all checks
+uv run ruff check core/ --fix    # Lint with auto-fix
+uv run ruff format core/          # Format code
+uv run mypy core/                 # Type check
+uv run pre-commit run --all-files # Run all checks
 ```
 
 ### Style Guidelines
@@ -118,19 +118,19 @@ See [.pre-commit-setup.md](../.pre-commit-setup.md) for detailed documentation.
 
 ```bash
 # All tests
-poetry run test-all
+uv run test-all
 
 # Specific test suites
-poetry run test-unit
-poetry run test-component
-poetry run test-dependency
-poetry run test-performance
+uv run test-unit
+uv run test-component
+uv run test-dependency
+uv run test-performance
 
 # Run a specific test file
-poetry run pytest tests/unit/test_notification_service.py -v
+uv run pytest tests/unit/test_notification_service.py -v
 
 # With coverage
-poetry run test-coverage
+uv run test-coverage
 ```
 
 ### Test Guidelines
@@ -170,8 +170,8 @@ test(notifications): add tests for SMS delivery
 
 ### Before Submitting
 
-- [ ] Pre-commit hooks pass (`poetry run pre-commit run --all-files`)
-- [ ] All tests pass (`poetry run test-all`)
+- [ ] Pre-commit hooks pass (`uv run pre-commit run --all-files`)
+- [ ] All tests pass (`uv run test-all`)
 - [ ] New tests added for new functionality
 - [ ] Documentation updated if applicable
 - [ ] Commit messages follow conventional commits
@@ -222,7 +222,7 @@ Report security issues via:
 
 - [Django Documentation](https://docs.djangoproject.com/)
 - [Django REST Framework](https://www.django-rest-framework.org/)
-- [Poetry Documentation](https://python-poetry.org/docs/)
+- [uv Documentation](https://docs.astral.sh/uv/)
 - [Conventional Commits](https://www.conventionalcommits.org/)
 
 ---
