@@ -32,8 +32,8 @@ env/
 ENV/
 .venv
 
-# Poetry
-.poetry/
+# uv
+.uv/
 
 # Testing
 .tox/

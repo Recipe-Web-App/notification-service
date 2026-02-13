@@ -5,10 +5,10 @@ to measure performance under various load conditions.
 
 Usage:
     # Start Django server first
-    poetry run local
+    uv run local
 
     # In another terminal, run performance tests
-    poetry run test-performance
+    uv run test-performance
 """
 
 from locust import HttpUser, task

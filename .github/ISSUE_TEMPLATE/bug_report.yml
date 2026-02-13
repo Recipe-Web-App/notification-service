@@ -86,13 +86,13 @@ body:
       placeholder: |
         - Python version: 3.14
         - Django version: 5.2.7
-        - Poetry version: 1.x
+        - uv version: 1.x
         - OS: Ubuntu 22.04
         - Deployment: Docker / Local
       value: |
         - Python version:
         - Django version:
-        - Poetry version:
+        - uv version:
         - OS:
         - Deployment:
     validations:
