@@ -52,7 +52,7 @@ repos:
   # Python Linting
   # ============================================================================
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.14
+    rev: v0.15.1
     hooks:
       - id: ruff-check
         args: [--fix]
@@ -138,7 +138,7 @@ repos:
   # osv-scanner - dependency vulnerability scanner
   # Configuration: osv-scanner.toml (automatically discovered)
   - repo: https://github.com/google/osv-scanner
-    rev: v2.3.2
+    rev: v2.3.3
     hooks:
       - id: osv-scanner
         args: ["--lockfile=uv.lock:uv.lock"]
@@ -209,7 +209,7 @@ repos:
   # Commit Message Validation
   # ============================================================================
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.12.1
+    rev: v4.13.7
     hooks:
       - id: commitizen
         stages: [commit-msg]
